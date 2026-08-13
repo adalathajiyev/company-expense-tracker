@@ -1,0 +1,32 @@
+import { Check, Plus, X } from 'lucide-react'
+import { useState } from 'react'
+import { categories, emptyExpense, paymentMethods } from '../constants'
+import type { ExpenseInput } from '../types'
+
+interface Props {
+  saving: boolean
+  onClose: () => void
+  onSubmit: (expense: ExpenseInput) => Promise<void>
+}
+
+export function AddExpenseModal({ saving, onClose, onSubmit }: Props) {
+  const [form, setForm] = useState<ExpenseInput>(emptyExpense)
+
+  return <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+    <div className="modal">
+      <div className="modal-head"><div><span className="modal-icon"><Plus size={20} /></span><div><h3>Add a new expense</h3><p>Record a company purchase</p></div></div><button className="icon-button" onClick={onClose}><X size={19} /></button></div>
+      <form onSubmit={async (event) => { event.preventDefault(); await onSubmit(form) }}>
+        <div className="form-grid">
+          <label className="wide">Merchant<span>*</span><input autoFocus required value={form.merchant} onChange={(e) => setForm({ ...form, merchant: e.target.value })} placeholder="e.g. Acme Supplies" /></label>
+          <label>Date<span>*</span><input type="date" required value={form.expense_date} onChange={(e) => setForm({ ...form, expense_date: e.target.value })} /></label>
+          <label>Amount<span>*</span><div className="money-input"><span>₼</span><input type="number" min="0.01" step="0.01" required value={form.amount || ''} onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })} placeholder="0.00" /></div></label>
+          <label>Category<select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>{categories.map((item) => <option key={item}>{item}</option>)}</select></label>
+          <label>Payment method<select value={form.payment_method} onChange={(e) => setForm({ ...form, payment_method: e.target.value })}>{paymentMethods.map((item) => <option key={item}>{item}</option>)}</select></label>
+          <label className="wide">Description<textarea value={form.description ?? ''} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="What was this expense for?" /></label>
+          <label className="wide">Status<div className="segmented"><button type="button" className={form.status === 'paid' ? 'selected' : ''} onClick={() => setForm({ ...form, status: 'paid' })}><Check size={15} /> Paid</button><button type="button" className={form.status === 'pending' ? 'selected' : ''} onClick={() => setForm({ ...form, status: 'pending' })}>Pending</button></div></label>
+        </div>
+        <div className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>Cancel</button><button disabled={saving} className="button primary">{saving ? 'Saving…' : 'Add expense'}</button></div>
+      </form>
+    </div>
+  </div>
+}
