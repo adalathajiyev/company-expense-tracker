@@ -3,7 +3,7 @@ create extension if not exists "pgcrypto";
 create table if not exists public.owner_funding (
   id uuid primary key default gen_random_uuid(),
   funding_date date not null default current_date,
-  owner_name text not null,
+  owner_name text not null constraint owner_funding_owner_name_check check (length(btrim(owner_name)) > 0),
   description text,
   payment_method text not null default 'Cash' check (payment_method = 'Cash'),
   direction text not null default 'incoming' check (direction in ('incoming', 'outgoing')),
@@ -28,6 +28,9 @@ alter table public.owner_funding drop constraint if exists owner_funding_directi
 alter table public.owner_funding add constraint owner_funding_direction_check check (direction in ('incoming', 'outgoing'));
 
 alter table public.owner_funding enable row level security;
+
+revoke all on table public.owner_funding from anon;
+grant select, insert, update, delete on table public.owner_funding to authenticated, service_role;
 
 create policy "Authenticated users can read owner funding" on public.owner_funding for select to authenticated using (true);
 create policy "Authenticated users can add owner funding" on public.owner_funding for insert to authenticated with check (true);

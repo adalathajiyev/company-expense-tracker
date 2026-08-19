@@ -1,0 +1,3 @@
+-- Historical migration marker from the original production history.
+-- Intentionally contains no executable SQL: the consolidated development
+-- baseline creates the final sale payment ledger.

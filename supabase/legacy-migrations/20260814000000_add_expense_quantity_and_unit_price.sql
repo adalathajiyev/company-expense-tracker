@@ -1,3 +1,5 @@
+-- Archived after consolidating the project into the development baseline migration.
+-- Keep this file as historical context; it must not run before the baseline on a fresh database.
 alter table public.expenses
   add column quantity numeric(12, 3),
   add column unit text,
