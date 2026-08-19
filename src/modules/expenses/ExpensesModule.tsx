@@ -1,9 +1,9 @@
-import { CalendarDays, Download, Plus, Search, SlidersHorizontal, X } from 'lucide-react'
+import { Banknote, CalendarDays, Download, Plus, Search, SlidersHorizontal, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { AddExpenseModal } from './components/AddExpenseModal'
 import { DeleteExpenseModal } from './components/DeleteExpenseModal'
 import { ExpensesTable } from './components/ExpensesTable'
-import { categories } from './constants'
+import { categories, paymentMethods } from './constants'
 import { createExpense, getExpenses, removeExpense } from './expenseService'
 import type { Expense, ExpenseInput } from './types'
 
@@ -17,6 +17,7 @@ export function ExpensesModule() {
   const [modalOpen, setModalOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('All categories')
+  const [paymentMethod, setPaymentMethod] = useState('All payment methods')
   const [period, setPeriod] = useState(`month:${currentMonth}`)
   const [saving, setSaving] = useState(false)
   const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null)
@@ -39,18 +40,20 @@ export function ExpensesModule() {
   const filtered = useMemo(() => expenses.filter((expense) => {
     const matchesText = `${expense.merchant} ${expense.description ?? ''}`.toLowerCase().includes(search.toLowerCase())
     const matchesCategory = category === 'All categories' || expense.category === category
+    const matchesPaymentMethod = paymentMethod === 'All payment methods' || expense.payment_method === paymentMethod
     const [periodType, periodValue] = period.split(':')
     const matchesPeriod = periodType === 'year'
       ? expense.expense_date.startsWith(periodValue)
       : expense.expense_date.startsWith(periodValue)
-    return matchesText && matchesCategory && matchesPeriod
-  }), [expenses, search, category, period])
+    return matchesText && matchesCategory && matchesPaymentMethod && matchesPeriod
+  }), [expenses, search, category, paymentMethod, period])
 
   async function addExpense(input: ExpenseInput) {
     setSaving(true)
     setError('')
     try {
-      const expense = await createExpense(input)
+      const amount = Number((input.quantity * input.unit_price).toFixed(2))
+      const expense = await createExpense({ ...input, amount })
       setExpenses((current) => [expense, ...current])
       setModalOpen(false)
     } catch (error) {
@@ -75,7 +78,7 @@ export function ExpensesModule() {
   }
 
   function exportCsv() {
-    const rows = [['Date', 'Merchant', 'Description', 'Category', 'Payment method', 'Status', 'Amount'], ...filtered.map((expense) => [expense.expense_date, expense.merchant, expense.description ?? '', expense.category, expense.payment_method, expense.status, String(expense.amount)])]
+    const rows = [['Date', 'Merchant', 'Description', 'Quantity', 'Unit', 'Unit price', 'Category', 'Payment method', 'Status', 'Amount'], ...filtered.map((expense) => [expense.expense_date, expense.merchant, expense.description ?? '', String(expense.quantity), expense.unit, String(expense.unit_price), expense.category, expense.payment_method, expense.status, String(expense.amount)])]
     const csv = rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(',')).join('\n')
     const link = document.createElement('a')
     link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
@@ -101,7 +104,8 @@ export function ExpensesModule() {
       </div>
       <div className="toolbar">
         <label className="search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search expenses..." /></label>
-        <label className="filter"><SlidersHorizontal size={16} /><select value={category} onChange={(event) => setCategory(event.target.value)}><option>All categories</option>{categories.map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label className="filter"><SlidersHorizontal size={16} /><select aria-label="Filter expenses by category" value={category} onChange={(event) => setCategory(event.target.value)}><option>All categories</option>{categories.map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label className="filter payment-filter"><Banknote size={16} /><select aria-label="Filter expenses by payment method" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}><option>All payment methods</option>{paymentMethods.map((item) => <option key={item}>{item}</option>)}</select></label>
         <span className="results">{filtered.length} entries</span>
       </div>
       <ExpensesTable expenses={filtered} loading={loading} onDelete={setExpenseToDelete} />

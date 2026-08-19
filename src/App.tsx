@@ -1,4 +1,4 @@
-import { Landmark, MoreHorizontal, ReceiptText, Settings, ShoppingBag } from 'lucide-react'
+import { Banknote, HandCoins, Landmark, MoreHorizontal, ReceiptText, Settings, ShoppingBag, WalletCards } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { AuthScreen } from './components/AuthScreen'
@@ -6,9 +6,12 @@ import { supabase } from './lib/supabase'
 import { ExpensesModule } from './modules/expenses/ExpensesModule'
 import { OwnerFundingModule } from './modules/owner-funding/OwnerFundingModule'
 import { SalesModule } from './modules/sales/SalesModule'
+import { BalanceModule } from './modules/balance/BalanceModule'
+import { DebtsModule } from './modules/debts/DebtsModule'
+import { SalariesModule } from './modules/salaries/SalariesModule'
 
 function App() {
-  const [activeModule, setActiveModule] = useState<'expenses' | 'owner-funding' | 'sales'>('expenses')
+  const [activeModule, setActiveModule] = useState<'expenses' | 'owner-funding' | 'sales' | 'debts' | 'salaries' | 'balance'>('expenses')
   const [session, setSession] = useState<Session | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
 
@@ -28,6 +31,9 @@ function App() {
         <button className={activeModule === 'expenses' ? 'active' : ''} onClick={() => setActiveModule('expenses')}><ReceiptText size={18} /> Expenses</button>
         <button className={activeModule === 'owner-funding' ? 'active' : ''} onClick={() => setActiveModule('owner-funding')}><Landmark size={18} /> Owner funding</button>
         <button className={activeModule === 'sales' ? 'active' : ''} onClick={() => setActiveModule('sales')}><ShoppingBag size={18} /> Sales</button>
+        <button className={activeModule === 'debts' ? 'active' : ''} onClick={() => setActiveModule('debts')}><HandCoins size={18} /> Debts</button>
+        <button className={activeModule === 'salaries' ? 'active' : ''} onClick={() => setActiveModule('salaries')}><Banknote size={18} /> Salaries</button>
+        <button className={activeModule === 'balance' ? 'active' : ''} onClick={() => setActiveModule('balance')}><WalletCards size={18} /> Balance</button>
         <div className="nav-label">Workspace</div>
         <a><Settings size={18} /> Settings</a>
       </nav>
@@ -36,7 +42,7 @@ function App() {
       </div>
     </aside>
 
-    <main>{activeModule === 'expenses' ? <ExpensesModule /> : activeModule === 'owner-funding' ? <OwnerFundingModule /> : <SalesModule />}</main>
+    <main>{activeModule === 'expenses' ? <ExpensesModule /> : activeModule === 'owner-funding' ? <OwnerFundingModule /> : activeModule === 'sales' ? <SalesModule /> : activeModule === 'debts' ? <DebtsModule /> : activeModule === 'salaries' ? <SalariesModule /> : <BalanceModule />}</main>
   </div>
 }
 

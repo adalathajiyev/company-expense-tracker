@@ -7,10 +7,14 @@ create table if not exists public.expenses (
   description text,
   category text not null,
   payment_method text not null,
+  quantity numeric(12, 3) not null check (quantity > 0),
+  unit text not null check (btrim(unit) <> ''),
+  unit_price numeric(12, 2) not null check (unit_price > 0),
   amount numeric(12, 2) not null check (amount >= 0),
   status text not null default 'paid' check (status in ('paid', 'pending')),
   receipt_url text,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  constraint expenses_amount_calculation_check check (amount = round(quantity * unit_price, 2))
 );
 
 create index if not exists expenses_expense_date_idx
