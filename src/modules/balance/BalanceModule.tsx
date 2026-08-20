@@ -43,7 +43,8 @@ export function BalanceModule() {
       const created = await createBalanceAdjustment(input)
       setAdjustments((current) => [created, ...current])
       setModalOpen(false)
-      setSummary(await getCashBalance())
+      try { setSummary(await getCashBalance()) }
+      catch { setError('The entry was saved, but the cash balance could not be refreshed. Use Refresh to try again.') }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Could not add the payment.')
     } finally {

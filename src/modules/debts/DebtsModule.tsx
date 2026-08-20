@@ -2,39 +2,40 @@ import { Banknote, CalendarDays, History, Plus, Search, Trash2, X } from 'lucide
 import { useEffect, useMemo, useState } from 'react'
 import { AddDebtPaymentModal } from './components/AddDebtPaymentModal'
 import { DebtPaymentHistoryModal } from './components/DebtPaymentHistoryModal'
-import { emptyDebt } from './constants'
+import { createEmptyDebt } from './constants'
 import { createDebt, createDebtPayment, getDebts, removeDebt, removeDebtPayment } from './debtService'
 import type { Debt, DebtInput, DebtPaymentInput, DebtStatus } from './types'
+import { getBusinessMonth, isFutureBusinessDate } from '../../lib/businessDate'
+import { sumMoney } from '../../lib/money'
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'AZN' })
 const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' })
-const today = new Date()
-const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
 const statusLabels: Record<DebtStatus, string> = { paid: 'Paid', partially_paid: 'Partially paid', unpaid: 'Unpaid' }
 
 export function DebtsModule() {
+  const currentMonth = getBusinessMonth()
   const [debts, setDebts] = useState<Debt[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [period, setPeriod] = useState(`month:${currentMonth}`)
   const [modalOpen, setModalOpen] = useState(false)
-  const [form, setForm] = useState<DebtInput>(emptyDebt)
+  const [form, setForm] = useState<DebtInput>(createEmptyDebt)
   const [saving, setSaving] = useState(false)
   const [paymentDebt, setPaymentDebt] = useState<Debt | null>(null)
   const [historyDebt, setHistoryDebt] = useState<Debt | null>(null)
   const [error, setError] = useState('')
 
   useEffect(() => { getDebts().then(setDebts).catch((error: Error) => setError(error.message)).finally(() => setLoading(false)) }, [])
-  const periods = useMemo(() => { const months = [...new Set(debts.map((debt) => debt.debt_date.slice(0, 7)).concat(currentMonth))].sort().reverse(); return { months, years: [...new Set(months.map((month) => month.slice(0, 4)))].sort().reverse() } }, [debts])
+  const periods = useMemo(() => { const months = [...new Set(debts.map((debt) => debt.debt_date.slice(0, 7)).concat(currentMonth))].sort().reverse(); return { months, years: [...new Set(months.map((month) => month.slice(0, 4)))].sort().reverse() } }, [debts, currentMonth])
   const filtered = useMemo(() => debts.filter((debt) => debt.debt_date.startsWith(period.split(':')[1]) && `${debt.worker_name} ${debt.description ?? ''}`.toLowerCase().includes(search.toLowerCase())), [debts, search, period])
-  const total = filtered.reduce((sum, debt) => sum + Number(debt.amount), 0)
-  const paidTotal = filtered.reduce((sum, debt) => sum + Number(debt.paid_amount), 0)
-  const remainingTotal = total - paidTotal
+  const total = sumMoney(filtered.map((debt) => Number(debt.amount)))
+  const paidTotal = sumMoney(filtered.map((debt) => Number(debt.paid_amount)))
+  const remainingTotal = sumMoney([total, -paidTotal])
 
   async function addDebt(event: React.FormEvent) {
     event.preventDefault(); setSaving(true); setError('')
-    try { const debt = await createDebt(form); setDebts((current) => [debt, ...current]); setModalOpen(false); setForm(emptyDebt) }
+    try { const debt = await createDebt(form); setDebts((current) => [debt, ...current]); setModalOpen(false); setForm(createEmptyDebt()) }
     catch (error) { setError(error instanceof Error ? error.message : 'Could not add the debt.') }
     finally { setSaving(false) }
   }
@@ -42,10 +43,15 @@ export function DebtsModule() {
   async function addPayment(input: DebtPaymentInput) {
     if (!paymentDebt) return
     const remaining = Number(paymentDebt.amount) - Number(paymentDebt.paid_amount)
-    if (input.payment_date > new Date().toISOString().slice(0, 10)) { setError('Payment date cannot be in the future.'); return }
+    if (isFutureBusinessDate(input.payment_date)) { setError('Payment date cannot be in the future.'); return }
     if (input.amount <= 0 || input.amount > remaining) { setError('Payment must be greater than zero and cannot exceed the remaining debt.'); return }
     setSaving(true); setError('')
-    try { await createDebtPayment(input); setDebts(await getDebts()); setPaymentDebt(null) }
+    try {
+      await createDebtPayment(input)
+      setPaymentDebt(null)
+      try { setDebts(await getDebts()) }
+      catch { setError('Payment was saved, but the latest debt balances could not be refreshed. Reload the page to see it.') }
+    }
     catch (error) { setError(error instanceof Error ? error.message : 'Could not add the debt payment.') }
     finally { setSaving(false) }
   }

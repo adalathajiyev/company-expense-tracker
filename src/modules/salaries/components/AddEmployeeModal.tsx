@@ -1,10 +1,11 @@
 import { FormEvent, useState } from 'react'
 import { UserPlus, X } from 'lucide-react'
+import { getBusinessDate } from '../../../lib/businessDate'
 
 interface Props { saving: boolean; onClose: () => void; onSubmit: (name: string, dailyRate: number, effectiveFrom: string) => Promise<void> }
 
 export function AddEmployeeModal({ saving, onClose, onSubmit }: Props) {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = getBusinessDate()
   const [name, setName] = useState('')
   const [dailyRate, setDailyRate] = useState(0)
   const [effectiveFrom, setEffectiveFrom] = useState(`${today.slice(0, 7)}-01`)

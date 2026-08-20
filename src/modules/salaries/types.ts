@@ -28,6 +28,12 @@ export interface SalaryPayment {
   created_at: string
 }
 
+export interface SalaryPaymentApplication extends SalaryPayment {
+  applied_amount: number
+  origin_salary_month: string
+  can_delete: boolean
+}
+
 export interface MonthlySalary {
   id: string
   employee_id: string
@@ -43,7 +49,7 @@ export interface MonthlySalary {
   closed_card_amount: number
   created_at: string
   updated_at: string
-  payments: SalaryPayment[]
+  payments: SalaryPaymentApplication[]
   gross_salary: number
   meal_deduction: number
   card_transferred: number

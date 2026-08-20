@@ -1,6 +1,6 @@
 import { Check, Plus, X } from 'lucide-react'
 import { useState } from 'react'
-import { categories, emptyExpense, paymentMethods, units } from '../constants'
+import { categories, createEmptyExpense, paymentMethods, units } from '../constants'
 import type { ExpenseInput } from '../types'
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'AZN' })
@@ -12,7 +12,7 @@ interface Props {
 }
 
 export function AddExpenseModal({ saving, onClose, onSubmit }: Props) {
-  const [form, setForm] = useState<ExpenseInput>(emptyExpense)
+  const [form, setForm] = useState<ExpenseInput>(createEmptyExpense)
   const calculatedTotal = form.quantity * form.unit_price
 
   return <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>

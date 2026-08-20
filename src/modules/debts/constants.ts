@@ -1,3 +1,6 @@
 import type { DebtInput } from './types'
+import { getBusinessDate } from '../../lib/businessDate'
 
-export const emptyDebt: DebtInput = { debt_date: new Date().toISOString().slice(0, 10), worker_name: '', description: '', amount: 0 }
+export function createEmptyDebt(): DebtInput {
+  return { debt_date: getBusinessDate(), worker_name: '', description: '', amount: 0 }
+}

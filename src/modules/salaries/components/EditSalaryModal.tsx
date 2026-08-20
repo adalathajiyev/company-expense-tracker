@@ -2,6 +2,7 @@ import { FormEvent, useState } from 'react'
 import { Pencil, X } from 'lucide-react'
 import { mealRate } from '../constants'
 import type { MonthlySalary, SalaryWorkInput } from '../types'
+import { roundMoney } from '../../../lib/money'
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'AZN' })
 
@@ -9,8 +10,8 @@ interface Props { salary: MonthlySalary; saving: boolean; onClose: () => void; o
 
 export function EditSalaryModal({ salary, saving, onClose, onSubmit }: Props) {
   const [form, setForm] = useState<SalaryWorkInput>({ days_worked: Number(salary.days_worked), meal_count: Number(salary.meal_count), notes: salary.notes ?? '' })
-  const gross = form.days_worked * Number(salary.daily_rate_snapshot)
-  const receivable = gross - form.meal_count * mealRate - Number(salary.total_paid)
+  const gross = roundMoney(form.days_worked * Number(salary.daily_rate_snapshot))
+  const receivable = roundMoney(gross - form.meal_count * mealRate - Number(salary.total_paid))
 
   async function submit(event: FormEvent) { event.preventDefault(); await onSubmit(form) }
 

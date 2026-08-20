@@ -2,13 +2,14 @@ import { FormEvent, useState } from 'react'
 import { Banknote, X } from 'lucide-react'
 import { paymentTypeLabels } from '../constants'
 import type { MonthlySalary, SalaryPaymentInput, SalaryPaymentType } from '../types'
+import { getBusinessDate } from '../../../lib/businessDate'
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'AZN' })
 
 interface Props { salary: MonthlySalary; saving: boolean; onClose: () => void; onSubmit: (payment: SalaryPaymentInput) => Promise<void> }
 
 export function AddSalaryPaymentModal({ salary, saving, onClose, onSubmit }: Props) {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = getBusinessDate()
   const [form, setForm] = useState<SalaryPaymentInput>({ monthly_salary_id: salary.id, payment_date: today, payment_type: 'cash_payment', amount: 0, note: '' })
 
   async function submit(event: FormEvent) { event.preventDefault(); await onSubmit(form) }

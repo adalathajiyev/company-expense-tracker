@@ -1,12 +1,13 @@
 import { FormEvent, useState } from 'react'
 import { HandCoins, X } from 'lucide-react'
 import type { Employee } from '../types'
+import { getBusinessDate } from '../../../lib/businessDate'
 
 interface CashPaymentInput { employeeId: string; salaryMonth: string; paymentDate: string; amount: number; note: string }
 interface Props { employees: Employee[]; defaultMonth: string; saving: boolean; onClose: () => void; onSubmit: (input: CashPaymentInput) => Promise<void> }
 
 export function RecordCashPaymentModal({ employees, defaultMonth, saving, onClose, onSubmit }: Props) {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = getBusinessDate()
   const [form, setForm] = useState<CashPaymentInput>({ employeeId: employees[0]?.id ?? '', salaryMonth: defaultMonth, paymentDate: today, amount: 0, note: '' })
 
   async function submit(event: FormEvent) { event.preventDefault(); await onSubmit(form) }

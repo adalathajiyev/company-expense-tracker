@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabase'
 import type { BalanceAdjustment, BalanceAdjustmentInput, CashBalance } from './types'
+import { fetchAllPages } from '../../lib/pagination'
 
 export async function getCashBalance() {
   const { data, error } = await supabase.from('cash_balance').select('*').single()
@@ -8,9 +9,10 @@ export async function getCashBalance() {
 }
 
 export async function getBalanceAdjustments() {
-  const { data, error } = await supabase.from('balance_adjustments').select('*').order('created_at', { ascending: false })
-  if (error) throw error
-  return data as BalanceAdjustment[]
+  return fetchAllPages<BalanceAdjustment>(async (from, to) => {
+    const { data, error } = await supabase.from('balance_adjustments').select('*').order('created_at', { ascending: false }).order('id').range(from, to)
+    return { data: data as BalanceAdjustment[] | null, error }
+  })
 }
 
 export async function createBalanceAdjustment(input: BalanceAdjustmentInput) {

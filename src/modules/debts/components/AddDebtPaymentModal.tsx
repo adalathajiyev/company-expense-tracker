@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react'
 import { Banknote, X } from 'lucide-react'
 import type { Debt, DebtPaymentInput } from '../types'
+import { getBusinessDate } from '../../../lib/businessDate'
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'AZN' })
 
@@ -8,7 +9,7 @@ interface Props { debt: Debt; saving: boolean; onClose: () => void; onSubmit: (p
 
 export function AddDebtPaymentModal({ debt, saving, onClose, onSubmit }: Props) {
   const remaining = Number(debt.amount) - Number(debt.paid_amount)
-  const today = new Date().toISOString().slice(0, 10)
+  const today = getBusinessDate()
   const [form, setForm] = useState<DebtPaymentInput>({ debt_id: debt.id, payment_date: today, amount: 0, note: '' })
 
   async function submit(event: FormEvent) { event.preventDefault(); await onSubmit(form) }

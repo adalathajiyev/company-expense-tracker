@@ -1,12 +1,14 @@
-import { FormEvent, useState } from 'react'
+import { useState, type FormEvent } from 'react'
 import { LockKeyhole } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
-export function AuthScreen() {
+interface Props { initialError?: string }
+
+export function AuthScreen({ initialError = '' }: Props) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState(initialError)
 
   async function signIn(event: FormEvent) {
     event.preventDefault()

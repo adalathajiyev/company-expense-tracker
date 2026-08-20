@@ -14,7 +14,9 @@ export interface Expense {
   status: ExpenseStatus
   receipt_url: string | null
   salary_source_id: string | null
+  created_by: string | null
+  created_by_email: string
   created_at: string
 }
 
-export type ExpenseInput = Omit<Expense, 'id' | 'created_at' | 'receipt_url' | 'salary_source_id'>
+export type ExpenseInput = Omit<Expense, 'id' | 'created_at' | 'receipt_url' | 'salary_source_id' | 'created_by' | 'created_by_email'>

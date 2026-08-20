@@ -1,13 +1,14 @@
 import { FormEvent, useState } from 'react'
 import { BadgeDollarSign, X } from 'lucide-react'
 import type { Employee } from '../types'
+import { getBusinessMonth } from '../../../lib/businessDate'
 
 interface Props { employees: Employee[]; saving: boolean; onClose: () => void; onSubmit: (employeeId: string, dailyRate: number, effectiveFrom: string) => Promise<void> }
 
 export function AddRateModal({ employees, saving, onClose, onSubmit }: Props) {
   const [employeeId, setEmployeeId] = useState(employees[0]?.id ?? '')
   const [dailyRate, setDailyRate] = useState(0)
-  const [effectiveFrom, setEffectiveFrom] = useState(`${new Date().toISOString().slice(0, 7)}-01`)
+  const [effectiveFrom, setEffectiveFrom] = useState(`${getBusinessMonth()}-01`)
 
   async function submit(event: FormEvent) { event.preventDefault(); await onSubmit(employeeId, dailyRate, effectiveFrom) }
 

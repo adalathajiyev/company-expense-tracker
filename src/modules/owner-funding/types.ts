@@ -8,7 +8,9 @@ export interface OwnerFunding {
   payment_method: string
   direction: OwnerFundingDirection
   amount: number
+  created_by: string | null
+  created_by_email: string
   created_at: string
 }
 
-export type OwnerFundingInput = Omit<OwnerFunding, 'id' | 'created_at'>
+export type OwnerFundingInput = Omit<OwnerFunding, 'id' | 'created_at' | 'created_by' | 'created_by_email'>

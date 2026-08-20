@@ -32,9 +32,9 @@ with salary_payment_allocation_totals as (
   group by allocation.payment_id
 ), totals as (
   select
-    coalesce((select sum(amount) from public.sale_payments where payment_method = 'Cash'), 0) as cash_sales,
+    coalesce((select sum(amount) from public.customer_payments where payment_method = 'Cash'), 0) as cash_sales,
     coalesce((select sum(case when direction = 'incoming' then amount else -amount end) from public.owner_funding), 0) as owner_funding,
-    coalesce((select sum(amount) from public.expenses where payment_method = 'Cash'), 0) as cash_expenses,
+    coalesce((select sum(amount) from public.expenses where payment_method = 'Cash' and status = 'paid'), 0) as cash_expenses,
     coalesce((
       select sum(greatest(payment.amount - coalesce(allocation.allocated_amount, 0), 0))
       from public.salary_payments payment

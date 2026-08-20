@@ -6,12 +6,17 @@ import { ExpensesTable } from './components/ExpensesTable'
 import { categories, paymentMethods } from './constants'
 import { createExpense, getExpenses, removeExpense } from './expenseService'
 import type { Expense, ExpenseInput } from './types'
+import type { AppRole } from '../access/types'
+import { canDeleteOwnedRecord } from '../access/types'
+import { getBusinessDate, getBusinessMonth } from '../../lib/businessDate'
+import { roundMoney } from '../../lib/money'
 
-const now = new Date()
-const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' })
 
-export function ExpensesModule() {
+interface Props { role: AppRole; currentUserId: string }
+
+export function ExpensesModule({ role, currentUserId }: Props) {
+  const currentMonth = getBusinessMonth()
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
@@ -35,7 +40,7 @@ export function ExpensesModule() {
     const months = [...new Set(expenses.map((expense) => expense.expense_date.slice(0, 7)).concat(currentMonth))].sort().reverse()
     const years = [...new Set(months.map((month) => month.slice(0, 4)))].sort().reverse()
     return { months, years }
-  }, [expenses])
+  }, [expenses, currentMonth])
 
   const filtered = useMemo(() => expenses.filter((expense) => {
     const matchesText = `${expense.merchant} ${expense.description ?? ''}`.toLowerCase().includes(search.toLowerCase())
@@ -52,7 +57,7 @@ export function ExpensesModule() {
     setSaving(true)
     setError('')
     try {
-      const amount = Number((input.quantity * input.unit_price).toFixed(2))
+      const amount = roundMoney(input.quantity * input.unit_price)
       const expense = await createExpense({ ...input, amount })
       setExpenses((current) => [expense, ...current])
       setModalOpen(false)
@@ -78,11 +83,11 @@ export function ExpensesModule() {
   }
 
   function exportCsv() {
-    const rows = [['Date', 'Merchant', 'Description', 'Quantity', 'Unit', 'Unit price', 'Category', 'Payment method', 'Status', 'Amount'], ...filtered.map((expense) => [expense.expense_date, expense.merchant, expense.description ?? '', String(expense.quantity), expense.unit, String(expense.unit_price), expense.category, expense.payment_method, expense.status, String(expense.amount)])]
+    const rows = [['Date', 'Merchant', 'Description', 'Quantity', 'Unit', 'Unit price', 'Category', 'Payment method', 'Status', 'Created by', 'Amount'], ...filtered.map((expense) => [expense.expense_date, expense.merchant, expense.description ?? '', String(expense.quantity), expense.unit, String(expense.unit_price), expense.category, expense.payment_method, expense.status, expense.created_by_email, String(expense.amount)])]
     const csv = rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(',')).join('\n')
     const link = document.createElement('a')
     link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
-    link.download = `expenses-${new Date().toISOString().slice(0, 10)}.csv`
+    link.download = `expenses-${getBusinessDate()}.csv`
     link.click()
     URL.revokeObjectURL(link.href)
   }
@@ -108,7 +113,7 @@ export function ExpensesModule() {
         <label className="filter payment-filter"><Banknote size={16} /><select aria-label="Filter expenses by payment method" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}><option>All payment methods</option>{paymentMethods.map((item) => <option key={item}>{item}</option>)}</select></label>
         <span className="results">{filtered.length} entries</span>
       </div>
-      <ExpensesTable expenses={filtered} loading={loading} onDelete={setExpenseToDelete} />
+      <ExpensesTable expenses={filtered} loading={loading} canDelete={(expense) => canDeleteOwnedRecord(role, currentUserId, expense.created_by)} onDelete={setExpenseToDelete} />
       <div className="panel-footer">Showing {filtered.length} of {expenses.length} expenses <span>Updated just now</span></div>
     </section>
 

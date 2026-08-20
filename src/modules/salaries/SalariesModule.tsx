@@ -10,14 +10,15 @@ import { RecordCashPaymentModal } from './components/RecordCashPaymentModal'
 import { SalaryPaymentHistoryModal } from './components/SalaryPaymentHistoryModal'
 import { addEmployeeRate, closePreviousSalaryMonthAndGenerate, createEmployee, createSalaryPayment, ensureMonthlySalary, getEmployees, getSalaries, getSalaryMonthClosePreview, removeMonthlySalary, removeSalaryPayment, updateMonthlySalary } from './salaryService'
 import type { Employee, MonthlySalary, SalaryClosePreview, SalaryMonthCloseResult, SalaryPaymentInput, SalaryStatus, SalaryWorkInput } from './types'
+import { getBusinessDate, getBusinessMonth, isFutureBusinessDate } from '../../lib/businessDate'
+import { sumMoney } from '../../lib/money'
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'AZN' })
 const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' })
-const today = new Date()
-const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
 const statusLabels: Record<SalaryStatus, string> = { draft: 'Draft', in_progress: 'In progress', paid: 'Paid', overpaid: 'Payments exceed earned', closed: 'Closed' }
 
 export function SalariesModule() {
+  const currentMonth = getBusinessMonth()
   const [employees, setEmployees] = useState<Employee[]>([])
   const [salaries, setSalaries] = useState<MonthlySalary[]>([])
   const [loading, setLoading] = useState(true)
@@ -47,10 +48,15 @@ export function SalariesModule() {
   const periods = useMemo(() => {
     const months = [...new Set(salaries.map((salary) => salary.salary_month.slice(0, 7)).concat(currentMonth))].sort().reverse()
     return { months, years: [...new Set(months.map((month) => month.slice(0, 4)))].sort().reverse() }
-  }, [salaries])
+  }, [salaries, currentMonth])
 
   const filtered = useMemo(() => salaries.filter((salary) => salary.salary_month.startsWith(period.split(':')[1]) && `${salary.employee.name} ${salary.notes ?? ''}`.toLowerCase().includes(search.toLowerCase())), [salaries, search, period])
-  const totals = filtered.reduce((result, salary) => ({ gross: result.gross + salary.gross_salary, paid: result.paid + salary.total_paid, meals: result.meals + salary.meal_deduction, receivable: result.receivable + salary.receivable_salary }), { gross: 0, paid: 0, meals: 0, receivable: 0 })
+  const totals = {
+    gross: sumMoney(filtered.map((salary) => salary.gross_salary)),
+    paid: sumMoney(filtered.map((salary) => salary.total_paid)),
+    meals: sumMoney(filtered.map((salary) => salary.meal_deduction)),
+    receivable: sumMoney(filtered.map((salary) => salary.receivable_salary)),
+  }
 
   async function runSaving(action: () => Promise<void>, fallback: string) {
     setSaving(true); setError('')
@@ -59,16 +65,21 @@ export function SalariesModule() {
     finally { setSaving(false) }
   }
 
+  async function reloadAfterSave(message: string) {
+    try { await reload() }
+    catch { setError(message) }
+  }
+
   async function addEmployee(name: string, dailyRate: number, effectiveFrom: string) {
-    await runSaving(async () => { await createEmployee(name, dailyRate, effectiveFrom); await reload(); setAddEmployeeOpen(false) }, 'Could not add the employee.')
+    await runSaving(async () => { await createEmployee(name, dailyRate, effectiveFrom); setAddEmployeeOpen(false); await reloadAfterSave('Employee was saved, but the list could not be refreshed. Reload the page to see it.') }, 'Could not add the employee.')
   }
 
   async function addRate(employeeId: string, dailyRate: number, effectiveFrom: string) {
-    await runSaving(async () => { await addEmployeeRate(employeeId, dailyRate, effectiveFrom); await reload(); setAddRateOpen(false) }, 'Could not save the new rate.')
+    await runSaving(async () => { await addEmployeeRate(employeeId, dailyRate, effectiveFrom); setAddRateOpen(false); await reloadAfterSave('The rate was saved, but salaries could not be refreshed. Reload the page to see it.') }, 'Could not save the new rate.')
   }
 
   async function addSalary(employeeId: string, salaryMonth: string) {
-    await runSaving(async () => { await ensureMonthlySalary(employeeId, salaryMonth); await reload(); setAddSalaryOpen(false); setPeriod(`month:${salaryMonth}`) }, 'Could not add the monthly salary.')
+    await runSaving(async () => { await ensureMonthlySalary(employeeId, salaryMonth); setAddSalaryOpen(false); setPeriod(`month:${salaryMonth}`); await reloadAfterSave('The salary was saved, but the list could not be refreshed. Reload the page to see it.') }, 'Could not add the monthly salary.')
   }
 
   function closeNotice(result: SalaryMonthCloseResult) {
@@ -108,19 +119,20 @@ export function SalariesModule() {
     await runSaving(async () => {
       const salaryId = await ensureMonthlySalary(input.employeeId, input.salaryMonth)
       await createSalaryPayment({ monthly_salary_id: salaryId, payment_date: input.paymentDate, payment_type: 'cash_payment', amount: input.amount, note: input.note })
-      await reload(); setCashPaymentOpen(false); setPeriod(`month:${input.salaryMonth}`)
+      setCashPaymentOpen(false); setPeriod(`month:${input.salaryMonth}`)
+      await reloadAfterSave('The cash payment was saved, but salaries could not be refreshed. Reload the page to see it.')
     }, 'Could not record the cash payment.')
   }
 
   async function saveSalary(input: SalaryWorkInput) {
     if (!editSalary) return
-    await runSaving(async () => { await updateMonthlySalary(editSalary.id, input); await reload(); setEditSalary(null) }, 'Could not update the salary.')
+    await runSaving(async () => { await updateMonthlySalary(editSalary.id, input); setEditSalary(null); await reloadAfterSave('The salary was updated, but the list could not be refreshed. Reload the page to see it.') }, 'Could not update the salary.')
   }
 
   async function addPayment(input: SalaryPaymentInput) {
-    if (input.payment_date > new Date().toISOString().slice(0, 10)) { setError('Payment date cannot be in the future.'); return }
+    if (isFutureBusinessDate(input.payment_date)) { setError('Payment date cannot be in the future.'); return }
     if (input.amount <= 0) { setError('Payment must be greater than zero.'); return }
-    await runSaving(async () => { await createSalaryPayment(input); await reload(); setPaymentSalary(null) }, 'Could not record the salary payment.')
+    await runSaving(async () => { await createSalaryPayment(input); setPaymentSalary(null); await reloadAfterSave('The payment was saved, but salaries could not be refreshed. Reload the page to see it.') }, 'Could not record the salary payment.')
   }
 
   async function deletePayment(paymentId: string) {
@@ -146,7 +158,7 @@ export function SalariesModule() {
   function exportCsv() {
     const rows = [['Month', 'Employee', 'Daily rate', 'Days worked', 'Gross salary', 'Card transferred', 'Cash payments', 'Cash credit carried in', 'Card credit carried in', 'Meals', 'Meal deduction', 'Receivable salary', 'Closed at'], ...filtered.map((salary) => [salary.salary_month.slice(0, 7), salary.employee.name, String(salary.daily_rate_snapshot), String(salary.days_worked), String(salary.gross_salary), String(salary.card_transferred), String(salary.cash_paid), String(salary.cash_credit), String(salary.card_credit), String(salary.meal_count), String(salary.meal_deduction), String(salary.receivable_salary), salary.closed_at ?? ''])]
     const csv = rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(',')).join('\n')
-    const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); link.download = `salaries-${new Date().toISOString().slice(0, 10)}.csv`; link.click(); URL.revokeObjectURL(link.href)
+    const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); link.download = `salaries-${getBusinessDate()}.csv`; link.click(); URL.revokeObjectURL(link.href)
   }
 
   return <>
