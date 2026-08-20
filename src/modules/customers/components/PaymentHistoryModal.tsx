@@ -23,7 +23,7 @@ export function PaymentHistoryModal({ customer, payments, sales, role, currentUs
   const totalUnallocated = sumMoney(payments.map((payment) => Number(payment.unallocated_amount)))
 
   return <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><div className="modal payment-history-modal customer-history-modal">
-    <div className="modal-head"><div><span className="modal-icon"><History size={20} /></span><div><h3>Customer payment history</h3><p>{customer.name}</p></div></div><button type="button" className="icon-button" onClick={onClose}><X size={19} /></button></div>
+    <div className="modal-head"><div><span className="modal-icon"><History size={20} /></span><div><h3>Customer payment history</h3><p>{customer.name} · {customer.phone}</p></div></div><button type="button" className="icon-button" onClick={onClose}><X size={19} /></button></div>
     <div className="payment-history-list">{payments.length === 0 ? <div className="payment-history-empty">No payments have been recorded for this customer.</div> : payments.map((payment) => {
       const canDelete = canDeleteOwnedRecord(role, currentUserId, payment.created_by)
       return <div className="customer-payment-history-item" key={payment.id}>

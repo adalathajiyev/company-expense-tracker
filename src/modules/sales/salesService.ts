@@ -61,16 +61,10 @@ export async function getSalesWorkspace(): Promise<SalesWorkspace> {
 }
 
 export async function createSale(input: SaleInput) {
-  const { error } = await supabase.from('sales').insert(input)
-  if (error) throw error
-}
-
-export async function updateSaleCustomer(saleId: string, customerId: string) {
-  const { error } = await supabase.rpc('reassign_sale_customer', {
-    p_sale_id: saleId,
-    p_customer_id: customerId,
+  const { error } = await supabase.from('sales').insert({
+    ...input,
+    description: input.description?.trim() || null,
   })
-
   if (error) throw error
 }
 

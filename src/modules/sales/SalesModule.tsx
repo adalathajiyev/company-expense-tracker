@@ -1,10 +1,10 @@
-import { CalendarDays, Plus, Search, Trash2, X } from 'lucide-react'
+import { CalendarDays, Plus, Search, Tags, Trash2, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { canDeleteOwnedRecord, hasFullAccess, type AppRole } from '../access/types'
+import { canDeleteOwnedRecord, type AppRole } from '../access/types'
 import type { Customer } from '../customers/types'
-import { createEmptySale, paymentMethods, units } from './constants'
-import { createSale, getSalesWorkspace, removeSale, updateSaleCustomer } from './salesService'
-import type { Sale, SaleInput, SalePaymentMethod, SaleStatus } from './types'
+import { createEmptySale, paymentMethods, saleCategories, units } from './constants'
+import { createSale, getSalesWorkspace, removeSale } from './salesService'
+import type { Sale, SaleCategory, SaleInput, SalePaymentMethod, SaleStatus } from './types'
 import { getBusinessMonth } from '../../lib/businessDate'
 import { roundMoney, sumMoney } from '../../lib/money'
 
@@ -19,17 +19,16 @@ interface Props { role: AppRole; currentUserId: string }
 export function SalesModule({ role, currentUserId }: Props) {
   const currentMonth = getBusinessMonth()
   const isOfficeAccountant = role === 'office_accountant'
-  const canReassignSales = hasFullAccess(role)
   const allowedPaymentMethods: readonly SalePaymentMethod[] = isOfficeAccountant ? bankTransferOnly : paymentMethods
   const [customers, setCustomers] = useState<Customer[]>([])
   const [sales, setSales] = useState<Sale[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState<'All categories' | SaleCategory>('All categories')
   const [period, setPeriod] = useState(`month:${currentMonth}`)
   const [saleModalOpen, setSaleModalOpen] = useState(false)
   const [form, setForm] = useState<SaleInput>(createEmptySale)
   const [saving, setSaving] = useState(false)
-  const [reassigningId, setReassigningId] = useState<string | null>(null)
   const [error, setError] = useState('')
 
   const loadWorkspace = useCallback(async () => {
@@ -53,8 +52,9 @@ export function SalesModule({ role, currentUserId }: Props) {
     const periodValue = period.split(':')[1]
     const query = search.trim().toLowerCase()
     return sales.filter((sale) => sale.sale_date.startsWith(periodValue)
-      && (!query || sale.product.toLowerCase().includes(query) || sale.customer_name.toLowerCase().includes(query)))
-  }, [sales, search, period])
+      && (categoryFilter === 'All categories' || sale.category === categoryFilter)
+      && (!query || `${sale.product} ${sale.customer_name} ${sale.category} ${sale.description ?? ''}`.toLowerCase().includes(query)))
+  }, [sales, search, period, categoryFilter])
 
   const total = sumMoney(filtered.map((sale) => Number(sale.amount)))
   const paidTotal = sumMoney(filtered.map((sale) => Number(sale.paid_amount)))
@@ -105,20 +105,6 @@ export function SalesModule({ role, currentUserId }: Props) {
     }
   }
 
-  async function reassignSale(sale: Sale, customerId: string) {
-    if (sale.customer_id === customerId) return
-    setReassigningId(sale.id)
-    setError('')
-    try {
-      await updateSaleCustomer(sale.id, customerId)
-      await loadWorkspace()
-    } catch (updateError) {
-      setError(updateError instanceof Error ? updateError.message : 'Could not reassign the sale.')
-    } finally {
-      setReassigningId(null)
-    }
-  }
-
   function openSaleModal() {
     if (customers.length === 0) {
       setError('Add a customer from the Customers tab before recording the first sale.')
@@ -135,15 +121,16 @@ export function SalesModule({ role, currentUserId }: Props) {
 
     <section className="panel">
       <div className="panel-heading"><div><h3>All sales</h3><p>Manage receipts and allocations from the Customers tab</p></div><label className="period-select"><CalendarDays size={15} /><select value={period} onChange={(event) => setPeriod(event.target.value)}><optgroup label="Whole year">{periods.years.map((year) => <option key={year} value={`year:${year}`}>{year} — whole year</option>)}</optgroup><optgroup label="By month">{periods.months.map((month) => <option key={month} value={`month:${month}`}>{monthFormatter.format(new Date(`${month}-01T12:00:00`))}</option>)}</optgroup></select></label></div>
-      <div className="toolbar"><label className="search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search products or customers..." /></label><span className="results">{filtered.length} entries</span></div>
-      <div className="table-wrap sales-table"><table><thead><tr><th>Date</th><th>Customer</th><th>Product</th><th>Quantity</th><th>Method</th><th>Status</th><th>Created by</th><th className="amount">Allocated</th><th className="amount">Total</th><th /></tr></thead><tbody>{loading ? <tr><td colSpan={10} className="empty">Loading sales…</td></tr> : filtered.length === 0 ? <tr><td colSpan={10} className="empty">No sales for this period.</td></tr> : filtered.map((sale) => {
+      <div className="toolbar"><label className="search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search products, customers, descriptions, or categories..." /></label><label className="filter"><Tags size={16} /><select aria-label="Filter sales by category" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value as 'All categories' | SaleCategory)}><option>All categories</option>{saleCategories.map((category) => <option key={category}>{category}</option>)}</select></label><span className="results">{filtered.length} entries</span></div>
+      <div className="table-wrap sales-table"><table><thead><tr><th>Date</th><th>Customer</th><th>Product</th><th>Description</th><th>Category</th><th>Quantity</th><th>Method</th><th>Status</th><th>Created by</th><th className="amount">Allocated</th><th className="amount">Total</th><th /></tr></thead><tbody>{loading ? <tr><td colSpan={12} className="empty">Loading sales…</td></tr> : filtered.length === 0 ? <tr><td colSpan={12} className="empty">No sales for this period.</td></tr> : filtered.map((sale) => {
         const ownedDelete = canDeleteOwnedRecord(role, currentUserId, sale.created_by)
         const canDelete = ownedDelete && Number(sale.paid_amount) === 0
-        const canReassign = canReassignSales && sale.payment_allocations.every((allocation) => allocation.payment.allocations.length === 1)
         return <tr key={sale.id}>
           <td className="date-cell">{dateFormatter.format(new Date(`${sale.sale_date}T12:00:00`))}</td>
-          <td>{canReassignSales ? <select className="table-select" title={canReassign ? 'Reassign sale and its single-sale payments' : 'This sale has a payment shared with another sale'} aria-label={`Customer for ${sale.product}`} disabled={reassigningId === sale.id || !canReassign} value={sale.customer_id} onChange={(event) => reassignSale(sale, event.target.value)}>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select> : <strong className="customer-name">{sale.customer_name}</strong>}</td>
+          <td><strong className="customer-name">{sale.customer_name}</strong></td>
           <td><div className="merchant"><span className="merchant-icon blue">{sale.product[0]}</span><div><strong>{sale.product}</strong><span>{currency.format(Number(sale.unit_price))} per {sale.unit}</span></div></div></td>
+          <td className="sale-description" title={sale.description ?? undefined}>{sale.description || 'No description'}</td>
+          <td><span className="category blue">{sale.category}</span></td>
           <td>{sale.quantity} {sale.unit}</td>
           <td><span className={`category ${sale.payment_method === 'Cash' ? 'green' : 'blue'}`}>{sale.payment_method}</span></td>
           <td><span className={`status ${sale.status === 'paid' ? 'paid' : 'pending'}`}><i />{statusLabels[sale.status]}</span></td>
@@ -152,16 +139,17 @@ export function SalesModule({ role, currentUserId }: Props) {
           <td className="amount"><strong>{currency.format(Number(sale.amount))}</strong></td>
           <td><button className="icon-button delete" disabled={!canDelete} title={!ownedDelete ? 'Only the creator or an Admin can delete this sale' : Number(sale.paid_amount) > 0 ? 'Sales with allocated payments cannot be deleted' : 'Delete sale'} onClick={() => deleteSale(sale)}><Trash2 size={15} /></button></td>
         </tr>
-      })}</tbody>{!loading && <tfoot><tr><td colSpan={7} className="total-label">Totals</td><td className="amount total-amount">{currency.format(paidTotal)}</td><td className="amount total-amount">{currency.format(total)}</td><td /></tr></tfoot>}</table></div>
+      })}</tbody>{!loading && <tfoot><tr><td colSpan={9} className="total-label">Totals</td><td className="amount total-amount">{currency.format(paidTotal)}</td><td className="amount total-amount">{currency.format(total)}</td><td /></tr></tfoot>}</table></div>
       <div className="panel-footer">Showing {filtered.length} of {sales.length} sales <span>Payment status updates from Customers</span></div>
     </section>
 
     {saleModalOpen && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setSaleModalOpen(false)}><div className="modal"><div className="modal-head"><div><span className="modal-icon"><Plus size={20} /></span><div><h3>Add a sale</h3><p>Record a product or service sold</p></div></div><button type="button" className="icon-button" onClick={() => setSaleModalOpen(false)}><X size={19} /></button></div><form onSubmit={addSale}><div className="form-grid">
       <label className="wide">Customer<span>*</span><select autoFocus required value={form.customer_id} onChange={(event) => setForm({ ...form, customer_id: event.target.value })}><option value="" disabled>Select customer</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
       <label className="wide">Product sold<span>*</span><input required value={form.product} onChange={(event) => setForm({ ...form, product: event.target.value })} placeholder="Product or service name" /></label>
-      <label>Date<span>*</span><input type="date" required value={form.sale_date} onChange={(event) => setForm({ ...form, sale_date: event.target.value })} /></label><label>Unit price<span>*</span><div className="money-input"><span>₼</span><input type="number" min="0.01" step="0.01" required value={form.unit_price || ''} onChange={(event) => setForm({ ...form, unit_price: Number(event.target.value) })} /></div></label>
-      <label>Quantity<span>*</span><input type="number" min="0.001" step="0.001" required value={form.quantity || ''} onChange={(event) => setForm({ ...form, quantity: event.target.value === '' ? 0 : Number(event.target.value) })} /></label><label>Unit<select value={form.unit} onChange={(event) => setForm({ ...form, unit: event.target.value })}>{units.map((unit) => <option key={unit}>{unit}</option>)}</select></label>
-      <label className="wide">Expected payment method<select value={form.payment_method} onChange={(event) => setForm({ ...form, payment_method: event.target.value as SalePaymentMethod })}>{allowedPaymentMethods.map((method) => <option key={method}>{method}</option>)}</select></label>
+      <label className="wide">Description<textarea value={form.description ?? ''} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Optional details about this sale" /></label>
+      <label>Category<span>*</span><select required value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value as SaleCategory })}>{saleCategories.map((category) => <option key={category}>{category}</option>)}</select></label><label>Date<span>*</span><input type="date" required value={form.sale_date} onChange={(event) => setForm({ ...form, sale_date: event.target.value })} /></label>
+      <label>Unit price<span>*</span><div className="money-input"><span>₼</span><input type="number" min="0.01" step="0.01" required value={form.unit_price || ''} onChange={(event) => setForm({ ...form, unit_price: Number(event.target.value) })} /></div></label><label>Quantity<span>*</span><input type="number" min="0.001" step="0.001" required value={form.quantity || ''} onChange={(event) => setForm({ ...form, quantity: event.target.value === '' ? 0 : Number(event.target.value) })} /></label>
+      <label>Unit<select value={form.unit} onChange={(event) => setForm({ ...form, unit: event.target.value })}>{units.map((unit) => <option key={unit}>{unit}</option>)}</select></label><label>Expected payment method<select value={form.payment_method} onChange={(event) => setForm({ ...form, payment_method: event.target.value as SalePaymentMethod })}>{allowedPaymentMethods.map((method) => <option key={method}>{method}</option>)}</select></label>
       <div className="wide calculated-total"><span>Calculated total</span><strong>{currency.format(form.quantity * form.unit_price)}</strong><small>{form.quantity || 0} × {currency.format(form.unit_price || 0)}</small></div>
       </div><div className="modal-actions"><button type="button" className="button secondary" onClick={() => setSaleModalOpen(false)}>Cancel</button><button className="button primary" disabled={saving}>{saving ? 'Saving…' : 'Add sale'}</button></div></form></div></div>}
   </>

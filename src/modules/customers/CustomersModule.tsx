@@ -10,6 +10,7 @@ import { customerPaymentMethods } from './constants'
 import { createCustomer, createCustomerPayment, removeCustomerPayment } from './customerService'
 import type {
   Customer,
+  CustomerInput,
   CustomerPayment,
   CustomerPaymentInput,
   CustomerPaymentMethod,
@@ -85,7 +86,11 @@ export function CustomersModule({ role, currentUserId }: Props) {
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase()
-    return summaries.filter((summary) => !query || summary.customer.name.toLowerCase().includes(query))
+    return summaries.filter((summary) => {
+      if (!query) return true
+      const customer = summary.customer
+      return `${customer.name} ${customer.phone} ${customer.details ?? ''}`.toLowerCase().includes(query)
+    })
   }, [search, summaries])
 
   async function refreshWorkspace() {
@@ -97,11 +102,16 @@ export function CustomersModule({ role, currentUserId }: Props) {
     catch { setError(message) }
   }
 
-  async function addCustomer(name: string) {
+  async function addCustomer(input: CustomerInput) {
+    if (!input.name.trim() || !input.phone.trim()) {
+      setError('Customer name and phone number are required.')
+      return
+    }
+
     setSaving(true)
     setError('')
     try {
-      await createCustomer(name)
+      await createCustomer(input)
       setCustomerModalOpen(false)
       await refreshAfterSave('Customer was saved, but the latest customer list could not be refreshed. Reload the page to see it.')
     } catch (saveError) {
@@ -172,9 +182,11 @@ export function CustomersModule({ role, currentUserId }: Props) {
 
     <section className="panel">
       <div className="panel-heading"><div><h3>Customer accounts</h3><p>Lifetime sales, receipts, and unapplied customer payments</p></div><span className="panel-heading-icon"><Users size={17} /></span></div>
-      <div className="toolbar"><label className="search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search customers..." /></label><span className="results">{filtered.length} customers</span></div>
-      <div className="table-wrap customer-accounts-table"><table><thead><tr><th>Customer</th><th className="amount">Sales</th><th className="amount">Received</th><th className="amount">Outstanding</th><th className="amount">Unallocated</th><th>Payments</th></tr></thead><tbody>{loading ? <tr><td colSpan={6} className="empty">Loading customer accounts…</td></tr> : filtered.length === 0 ? <tr><td colSpan={6} className="empty">{customers.length === 0 ? 'No customers have been added.' : 'No customers match your search.'}</td></tr> : filtered.map((summary) => <tr key={summary.customer.id}>
+      <div className="toolbar"><label className="search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search names, phones, or details..." /></label><span className="results">{filtered.length} customers</span></div>
+      <div className="table-wrap customer-accounts-table"><table><thead><tr><th>Customer</th><th>Phone</th><th>Details</th><th className="amount">Sales</th><th className="amount">Received</th><th className="amount">Outstanding</th><th className="amount">Unallocated</th><th>Payments</th></tr></thead><tbody>{loading ? <tr><td colSpan={8} className="empty">Loading customer accounts…</td></tr> : filtered.length === 0 ? <tr><td colSpan={8} className="empty">{customers.length === 0 ? 'No customers have been added.' : 'No customers match your search.'}</td></tr> : filtered.map((summary) => <tr key={summary.customer.id}>
         <td><div className="merchant"><span className="merchant-icon green">{summary.customer.name[0]}</span><div><strong>{summary.customer.name}</strong><span>{summary.sales_count} {summary.sales_count === 1 ? 'sale' : 'sales'}</span></div></div></td>
+        <td>{summary.customer.phone}</td>
+        <td className="customer-details-cell" title={summary.customer.details ?? undefined}>{summary.customer.details || '—'}</td>
         <td className="amount">{currency.format(summary.total_sales)}</td>
         <td className="amount">{currency.format(summary.total_received)}</td>
         <td className="amount"><strong className={summary.outstanding > 0 ? 'negative-amount' : ''}>{currency.format(summary.outstanding)}</strong>{summary.credit > 0 && <div className="paid-detail">{currency.format(summary.credit)} customer credit</div>}</td>

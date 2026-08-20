@@ -3,7 +3,15 @@ export type CustomerPaymentMethod = 'Cash' | 'Bank transfer'
 export interface Customer {
   id: string
   name: string
+  phone: string
+  details: string | null
   created_at: string
+}
+
+export interface CustomerInput {
+  name: string
+  phone: string
+  details: string | null
 }
 
 export interface PaymentAllocation {

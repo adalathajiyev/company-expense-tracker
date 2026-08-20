@@ -2,6 +2,7 @@ import type { CustomerPayment, PaymentAllocation } from '../customers/types'
 
 export type SaleStatus = 'paid' | 'partially_paid' | 'unpaid'
 export type SalePaymentMethod = 'Cash' | 'Bank transfer'
+export type SaleCategory = 'Pallet' | 'Pellet' | 'Furniture' | 'Raw materials' | 'Metal Pipes' | 'Sawdust' | 'Transportation' | 'Other'
 
 export interface SalePaymentAllocation extends PaymentAllocation {
   payment: CustomerPayment
@@ -13,6 +14,8 @@ export interface Sale {
   customer_name: string
   sale_date: string
   product: string
+  description: string | null
+  category: SaleCategory
   quantity: number
   unit: string
   unit_price: number
@@ -26,4 +29,4 @@ export interface Sale {
   payment_allocations: SalePaymentAllocation[]
 }
 
-export type SaleInput = Pick<Sale, 'customer_id' | 'sale_date' | 'product' | 'quantity' | 'unit' | 'unit_price' | 'amount' | 'payment_method'>
+export type SaleInput = Pick<Sale, 'customer_id' | 'sale_date' | 'product' | 'description' | 'category' | 'quantity' | 'unit' | 'unit_price' | 'amount' | 'payment_method'>

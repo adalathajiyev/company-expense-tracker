@@ -7,6 +7,11 @@
 --
 --   20260819194218_add_customer_payment_allocations.sql
 --   20260819194808_add_safe_sale_customer_reassignment.sql
+--   20260820100516_add_sale_category.sql
+--   20260820104632_add_customer_contact_details.sql
+--   20260820111230_make_sale_customer_immutable.sql
+--   20260820111430_revoke_customer_payment_updates.sql
+--   20260820112645_add_sale_description.sql
 --
 -- Apply the migrations instead of running this reference file directly. The
 -- final model contains public.customers, public.sales,

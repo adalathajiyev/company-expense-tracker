@@ -1,10 +1,9 @@
 import type { ExpenseInput } from './types'
 import { getBusinessDate } from '../../lib/businessDate'
+export { units } from '../../lib/units'
 
 export const categories = ['Office', 'Software', 'Travel', 'Meals', 'Marketing', 'Utilities', 'Payroll', 'Other']
 export const paymentMethods = ['Cash', 'Bank transfer']
-export const units = ['Piece', 'Kilogram', 'Liter', 'Meter', 'Box', 'Service']
-
 export function createEmptyExpense(): ExpenseInput {
   return {
     expense_date: getBusinessDate(),

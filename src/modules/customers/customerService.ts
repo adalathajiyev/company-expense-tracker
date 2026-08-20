@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase'
 import type {
   Customer,
+  CustomerInput,
   CustomerPayment,
   CustomerPaymentInput,
   PaymentAllocation,
@@ -58,10 +59,19 @@ export async function getCustomerPayments() {
   return rows.map((row) => toCustomerPayment(row, allocationsByPayment.get(row.id) ?? []))
 }
 
-export async function createCustomer(name: string) {
+export async function createCustomer(input: CustomerInput) {
+  const name = input.name.trim()
+  const phone = input.phone.trim()
+
+  if (!name || !phone) throw new Error('Customer name and phone number are required.')
+
   const { data, error } = await supabase
     .from('customers')
-    .insert({ name: name.trim() })
+    .insert({
+      name,
+      phone,
+      details: input.details?.trim() || null,
+    })
     .select()
     .single()
 
