@@ -24,6 +24,7 @@ function App() {
   const [role, setRole] = useState<AppRole | null>(null)
   const [roleLoading, setRoleLoading] = useState(false)
   const [roleError, setRoleError] = useState('')
+  const currentUserId = session?.user.id ?? null
 
   useEffect(() => {
     supabase.auth.getSession()
@@ -38,7 +39,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (!session) {
+    if (!currentUserId) {
       setRole(null)
       setRoleLoading(false)
       setRoleError('')
@@ -48,13 +49,13 @@ function App() {
     let cancelled = false
     setRoleLoading(true)
     setRoleError('')
-    getCurrentUserRole(session.user.id)
+    getCurrentUserRole(currentUserId)
       .then((nextRole) => { if (!cancelled) setRole(nextRole) })
       .catch((error: Error) => { if (!cancelled) setRoleError(error.message) })
       .finally(() => { if (!cancelled) setRoleLoading(false) })
 
     return () => { cancelled = true }
-  }, [session])
+  }, [currentUserId])
 
   if (authLoading || (session && roleLoading)) return <div className="auth-page"><div className="auth-loading">Loading…</div></div>
   if (!session) return <AuthScreen initialError={authError} />
