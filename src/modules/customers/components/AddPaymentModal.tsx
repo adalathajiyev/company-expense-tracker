@@ -3,11 +3,10 @@ import { Banknote, WandSparkles, X } from 'lucide-react'
 import { customerPaymentMethods } from '../constants'
 import type { Customer, CustomerPaymentInput, CustomerPaymentMethod } from '../types'
 import type { Sale } from '../../sales/types'
-import { getBusinessDate } from '../../../lib/businessDate'
+import { formatDate, getBusinessDate } from '../../../lib/businessDate'
 import { roundMoney, sumMoney } from '../../../lib/money'
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'AZN' })
-const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 
 interface Props {
   customer: Customer
@@ -111,7 +110,7 @@ export function AddPaymentModal({ customer, sales, saving, allowedPaymentMethods
         {openSales.length === 0 ? <div className="allocation-empty">This customer has no open sales. The full payment will remain as unallocated credit.</div> : openSales.map((sale) => {
           const remaining = Math.max(Number(sale.amount) - Number(sale.paid_amount), 0)
           return <label className="allocation-row" key={sale.id}>
-            <span><strong>{sale.product}</strong><small>{dateFormatter.format(new Date(`${sale.sale_date}T12:00:00`))} · {currency.format(remaining)} remaining</small></span>
+            <span><strong>{sale.product}</strong><small>{formatDate(sale.sale_date)} · {currency.format(remaining)} remaining</small></span>
             <div className="money-input"><span>₼</span><input aria-label={`Allocation for ${sale.product}`} type="number" min="0" max={remaining} step="0.01" value={allocations[sale.id] ?? ''} onChange={(event) => changeAllocation(sale.id, event.target.value)} /></div>
           </label>
         })}

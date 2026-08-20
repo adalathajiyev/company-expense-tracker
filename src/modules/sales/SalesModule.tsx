@@ -5,11 +5,10 @@ import type { Customer } from '../customers/types'
 import { createEmptySale, paymentMethods, saleCategories, units } from './constants'
 import { createSale, getSalesWorkspace, removeSale } from './salesService'
 import type { Sale, SaleCategory, SaleInput, SalePaymentMethod, SaleStatus } from './types'
-import { getBusinessMonth } from '../../lib/businessDate'
+import { formatDate, getBusinessMonth } from '../../lib/businessDate'
 import { roundMoney, sumMoney } from '../../lib/money'
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'AZN' })
-const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' })
 const statusLabels: Record<SaleStatus, string> = { paid: 'Paid', partially_paid: 'Partially paid', unpaid: 'Unpaid' }
 const bankTransferOnly = ['Bank transfer'] as const satisfies readonly SalePaymentMethod[]
@@ -126,7 +125,7 @@ export function SalesModule({ role, currentUserId }: Props) {
         const ownedDelete = canDeleteOwnedRecord(role, currentUserId, sale.created_by)
         const canDelete = ownedDelete && Number(sale.paid_amount) === 0
         return <tr key={sale.id}>
-          <td className="date-cell">{dateFormatter.format(new Date(`${sale.sale_date}T12:00:00`))}</td>
+          <td className="date-cell">{formatDate(sale.sale_date)}</td>
           <td><strong className="customer-name">{sale.customer_name}</strong></td>
           <td><div className="merchant"><span className="merchant-icon blue">{sale.product[0]}</span><div><strong>{sale.product}</strong><span>{currency.format(Number(sale.unit_price))} per {sale.unit}</span></div></div></td>
           <td className="sale-description" title={sale.description ?? undefined}>{sale.description || 'No description'}</td>

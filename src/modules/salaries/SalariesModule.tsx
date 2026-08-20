@@ -10,7 +10,7 @@ import { RecordCashPaymentModal } from './components/RecordCashPaymentModal'
 import { SalaryPaymentHistoryModal } from './components/SalaryPaymentHistoryModal'
 import { addEmployeeRate, closePreviousSalaryMonthAndGenerate, createEmployee, createSalaryPayment, ensureMonthlySalary, getEmployees, getSalaries, getSalaryMonthClosePreview, removeMonthlySalary, removeSalaryPayment, updateMonthlySalary } from './salaryService'
 import type { Employee, MonthlySalary, SalaryClosePreview, SalaryMonthCloseResult, SalaryPaymentInput, SalaryStatus, SalaryWorkInput } from './types'
-import { getBusinessDate, getBusinessMonth, isFutureBusinessDate } from '../../lib/businessDate'
+import { formatDateTime, formatMonth, getBusinessDate, getBusinessMonth, isFutureBusinessDate } from '../../lib/businessDate'
 import { sumMoney } from '../../lib/money'
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'AZN' })
@@ -156,7 +156,7 @@ export function SalariesModule() {
   }
 
   function exportCsv() {
-    const rows = [['Month', 'Employee', 'Daily rate', 'Days worked', 'Gross salary', 'Card transferred', 'Cash payments', 'Cash credit carried in', 'Card credit carried in', 'Meals', 'Meal deduction', 'Receivable salary', 'Closed at'], ...filtered.map((salary) => [salary.salary_month.slice(0, 7), salary.employee.name, String(salary.daily_rate_snapshot), String(salary.days_worked), String(salary.gross_salary), String(salary.card_transferred), String(salary.cash_paid), String(salary.cash_credit), String(salary.card_credit), String(salary.meal_count), String(salary.meal_deduction), String(salary.receivable_salary), salary.closed_at ?? ''])]
+    const rows = [['Month', 'Employee', 'Daily rate', 'Days worked', 'Gross salary', 'Card transferred', 'Cash payments', 'Cash credit carried in', 'Card credit carried in', 'Meals', 'Meal deduction', 'Receivable salary', 'Closed at'], ...filtered.map((salary) => [formatMonth(salary.salary_month), salary.employee.name, String(salary.daily_rate_snapshot), String(salary.days_worked), String(salary.gross_salary), String(salary.card_transferred), String(salary.cash_paid), String(salary.cash_credit), String(salary.card_credit), String(salary.meal_count), String(salary.meal_deduction), String(salary.receivable_salary), salary.closed_at ? formatDateTime(salary.closed_at) : ''])]
     const csv = rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(',')).join('\n')
     const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); link.download = `salaries-${getBusinessDate()}.csv`; link.click(); URL.revokeObjectURL(link.href)
   }

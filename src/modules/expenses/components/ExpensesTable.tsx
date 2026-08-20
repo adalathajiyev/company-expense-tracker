@@ -1,9 +1,9 @@
 import { Trash2 } from 'lucide-react'
 import type { Expense } from '../types'
 import { sumMoney } from '../../../lib/money'
+import { formatDate } from '../../../lib/businessDate'
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'AZN' })
-const shortDate = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 const categoryClass: Record<string, string> = { Office: 'blue', Software: 'violet', Travel: 'orange', Meals: 'green', Marketing: 'pink', Utilities: 'yellow', Payroll: 'navy', Other: 'gray' }
 
 interface Props {
@@ -19,7 +19,7 @@ export function ExpensesTable({ expenses, loading, canDelete, onDelete }: Props)
   return <div className="table-wrap"><table>
     <thead><tr><th>Date</th><th>Merchant / description</th><th>Quantity</th><th className="amount">Unit price</th><th>Category</th><th>Payment</th><th>Status</th><th>Created by</th><th className="amount">Amount</th><th /></tr></thead>
     <tbody>{loading ? <tr><td colSpan={10} className="empty">Loading expenses…</td></tr> : expenses.length === 0 ? <tr><td colSpan={10} className="empty">No expenses match your filters.</td></tr> : expenses.map((expense) => <tr key={expense.id}>
-      <td className="date-cell">{shortDate.format(new Date(`${expense.expense_date}T12:00:00`))}</td>
+      <td className="date-cell">{formatDate(expense.expense_date)}</td>
       <td><div className="merchant"><span className={`merchant-icon ${categoryClass[expense.category] ?? 'gray'}`}>{expense.merchant[0]}</span><div><strong>{expense.merchant}</strong><span>{expense.description || 'No description'}</span></div></div></td>
       <td>{expense.quantity} {expense.unit}</td>
       <td className="amount">{currency.format(Number(expense.unit_price))}</td>

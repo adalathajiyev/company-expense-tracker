@@ -2,10 +2,9 @@ import { RefreshCw, Save, ShieldCheck, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { getManagedUsers, setUserRole } from './accessService'
 import { roleLabels, type AppRole, type ManagedUser } from './types'
+import { formatDate, formatDateTime } from '../../lib/businessDate'
 
 const roleOptions: AppRole[] = ['admin', 'main_accountant', 'office_accountant']
-const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-const dateTimeFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 
 interface Props { currentUserId: string }
 
@@ -64,8 +63,8 @@ export function AccessModule({ currentUserId }: Props) {
           const roleChanged = selectedRole !== '' && selectedRole !== user.role
           return <tr key={user.user_id}>
             <td><div className="access-user"><strong>{user.email ?? 'No email address'}</strong><span>{isCurrentUser ? 'Current account' : user.user_id}</span></div></td>
-            <td>{dateFormatter.format(new Date(user.created_at))}</td>
-            <td>{user.last_sign_in_at ? dateTimeFormatter.format(new Date(user.last_sign_in_at)) : 'Never'}</td>
+            <td>{formatDate(user.created_at)}</td>
+            <td>{user.last_sign_in_at ? formatDateTime(user.last_sign_in_at) : 'Never'}</td>
             <td><div className="access-role-control"><select className="role-select" value={selectedRole} disabled={isCurrentUser || savingUserId === user.user_id} onChange={(event) => setSelectedRoles((current) => ({ ...current, [user.user_id]: event.target.value as AppRole | '' }))}><option value="">Unassigned</option>{roleOptions.map((role) => <option key={role} value={role}>{roleLabels[role]}</option>)}</select><button className="button primary compact-button" disabled={!roleChanged || isCurrentUser || savingUserId === user.user_id} onClick={() => void saveRole(user)}><Save size={14} /> {savingUserId === user.user_id ? 'Saving…' : 'Save'}</button></div></td>
           </tr>
         })}

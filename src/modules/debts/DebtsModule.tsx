@@ -1,15 +1,14 @@
-import { Banknote, CalendarDays, History, Plus, Search, Trash2, X } from 'lucide-react'
+import { Banknote, CalendarDays, History, Plus, Search, SlidersHorizontal, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { AddDebtPaymentModal } from './components/AddDebtPaymentModal'
 import { DebtPaymentHistoryModal } from './components/DebtPaymentHistoryModal'
 import { createEmptyDebt } from './constants'
 import { createDebt, createDebtPayment, getDebts, removeDebt, removeDebtPayment } from './debtService'
 import type { Debt, DebtInput, DebtPaymentInput, DebtStatus } from './types'
-import { getBusinessMonth, isFutureBusinessDate } from '../../lib/businessDate'
+import { formatDate, getBusinessMonth, isFutureBusinessDate } from '../../lib/businessDate'
 import { sumMoney } from '../../lib/money'
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'AZN' })
-const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' })
 const statusLabels: Record<DebtStatus, string> = { paid: 'Paid', partially_paid: 'Partially paid', unpaid: 'Unpaid' }
 
@@ -18,7 +17,8 @@ export function DebtsModule() {
   const [debts, setDebts] = useState<Debt[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [period, setPeriod] = useState(`month:${currentMonth}`)
+  const [period, setPeriod] = useState('all')
+  const [debtVisibility, setDebtVisibility] = useState<'outstanding' | 'all'>('outstanding')
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState<DebtInput>(createEmptyDebt)
   const [saving, setSaving] = useState(false)
@@ -28,7 +28,12 @@ export function DebtsModule() {
 
   useEffect(() => { getDebts().then(setDebts).catch((error: Error) => setError(error.message)).finally(() => setLoading(false)) }, [])
   const periods = useMemo(() => { const months = [...new Set(debts.map((debt) => debt.debt_date.slice(0, 7)).concat(currentMonth))].sort().reverse(); return { months, years: [...new Set(months.map((month) => month.slice(0, 4)))].sort().reverse() } }, [debts, currentMonth])
-  const filtered = useMemo(() => debts.filter((debt) => debt.debt_date.startsWith(period.split(':')[1]) && `${debt.worker_name} ${debt.description ?? ''}`.toLowerCase().includes(search.toLowerCase())), [debts, search, period])
+  const filtered = useMemo(() => debts.filter((debt) => {
+    const matchesPeriod = period === 'all' || debt.debt_date.startsWith(period.split(':')[1])
+    const matchesVisibility = debtVisibility === 'all' || debt.status !== 'paid'
+    const matchesSearch = `${debt.worker_name} ${debt.description ?? ''}`.toLowerCase().includes(search.toLowerCase())
+    return matchesPeriod && matchesVisibility && matchesSearch
+  }), [debts, search, period, debtVisibility])
   const total = sumMoney(filtered.map((debt) => Number(debt.amount)))
   const paidTotal = sumMoney(filtered.map((debt) => Number(debt.paid_amount)))
   const remainingTotal = sumMoney([total, -paidTotal])
@@ -72,9 +77,9 @@ export function DebtsModule() {
     <header><div><p className="eyebrow">WORKER DEBTS</p><h1>Debts</h1><p>Track money workers owe to the company and their repayments.</p></div><button className="button primary" onClick={() => setModalOpen(true)}><Plus size={17} /> Add debt</button></header>
     {error && <div className="error-banner">{error}<button onClick={() => setError('')}><X size={15} /></button></div>}
     <section className="panel">
-      <div className="panel-heading"><div><h3>All worker debts</h3><p>Track original debt, repayments, and remaining balances</p></div><label className="period-select"><CalendarDays size={15} /><select value={period} onChange={(e) => setPeriod(e.target.value)}><optgroup label="Whole year">{periods.years.map((year) => <option key={year} value={`year:${year}`}>{year} — whole year</option>)}</optgroup><optgroup label="By month">{periods.months.map((month) => <option key={month} value={`month:${month}`}>{monthFormatter.format(new Date(`${month}-01T12:00:00`))}</option>)}</optgroup></select></label></div>
-      <div className="toolbar"><label className="search"><Search size={17} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search workers or descriptions..." /></label><span className="results">{filtered.length} entries</span></div>
-      <div className="table-wrap"><table><thead><tr><th>Date</th><th>Worker / description</th><th>Status</th><th className="amount">Repaid</th><th className="amount">Remaining</th><th className="amount">Initial debt</th><th>Payments</th><th /></tr></thead><tbody>{loading ? <tr><td colSpan={8} className="empty">Loading debts…</td></tr> : filtered.length === 0 ? <tr><td colSpan={8} className="empty">No worker debts for this period.</td></tr> : filtered.map((debt) => <tr key={debt.id}><td className="date-cell">{dateFormatter.format(new Date(`${debt.debt_date}T12:00:00`))}</td><td><div className="merchant"><span className="merchant-icon orange">{debt.worker_name[0]}</span><div><strong>{debt.worker_name}</strong><span>{debt.description || 'No description'}</span></div></div></td><td><span className={`status ${debt.status === 'paid' ? 'paid' : 'pending'}`}><i />{statusLabels[debt.status]}</span></td><td className="amount">{currency.format(Number(debt.paid_amount))}</td><td className="amount"><strong>{currency.format(Number(debt.amount) - Number(debt.paid_amount))}</strong></td><td className="amount">{currency.format(Number(debt.amount))}</td><td><div className="row-actions"><button className="icon-button payment" title="Add payment" disabled={debt.status === 'paid'} onClick={() => setPaymentDebt(debt)}><Banknote size={15} /></button><button className="icon-button" title="Payment history" onClick={() => setHistoryDebt(debt)}><History size={15} /></button></div></td><td><button className="icon-button delete" title="Delete debt" onClick={() => deleteDebt(debt.id)}><Trash2 size={15} /></button></td></tr>)}</tbody>{!loading && <tfoot><tr><td colSpan={3} className="total-label">Totals</td><td className="amount total-amount">{currency.format(paidTotal)}</td><td className="amount total-amount">{currency.format(remainingTotal)}</td><td className="amount total-amount">{currency.format(total)}</td><td colSpan={2} /></tr></tfoot>}</table></div>
+      <div className="panel-heading"><div><h3>Worker debts</h3><p>Track original debt, repayments, and remaining balances</p></div><label className="period-select"><CalendarDays size={15} /><select value={period} onChange={(e) => setPeriod(e.target.value)}><option value="all">All dates</option><optgroup label="Whole year">{periods.years.map((year) => <option key={year} value={`year:${year}`}>{year} — whole year</option>)}</optgroup><optgroup label="By month">{periods.months.map((month) => <option key={month} value={`month:${month}`}>{monthFormatter.format(new Date(`${month}-01T12:00:00`))}</option>)}</optgroup></select></label></div>
+      <div className="toolbar"><label className="search"><Search size={17} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search workers or descriptions..." /></label><label className="filter payment-filter"><SlidersHorizontal size={16} /><select aria-label="Filter debts by payment status" value={debtVisibility} onChange={(e) => setDebtVisibility(e.target.value as 'outstanding' | 'all')}><option value="outstanding">Outstanding only</option><option value="all">All debts</option></select></label><span className="results">{filtered.length} entries</span></div>
+      <div className="table-wrap"><table><thead><tr><th>Date</th><th>Worker / description</th><th>Status</th><th className="amount">Repaid</th><th className="amount">Remaining</th><th className="amount">Initial debt</th><th>Payments</th><th /></tr></thead><tbody>{loading ? <tr><td colSpan={8} className="empty">Loading debts…</td></tr> : filtered.length === 0 ? <tr><td colSpan={8} className="empty">No debts match your filters.</td></tr> : filtered.map((debt) => <tr key={debt.id}><td className="date-cell">{formatDate(debt.debt_date)}</td><td><div className="merchant"><span className="merchant-icon orange">{debt.worker_name[0]}</span><div><strong>{debt.worker_name}</strong><span>{debt.description || 'No description'}</span></div></div></td><td><span className={`status ${debt.status === 'paid' ? 'paid' : 'pending'}`}><i />{statusLabels[debt.status]}</span></td><td className="amount">{currency.format(Number(debt.paid_amount))}</td><td className="amount"><strong>{currency.format(Number(debt.amount) - Number(debt.paid_amount))}</strong></td><td className="amount">{currency.format(Number(debt.amount))}</td><td><div className="row-actions"><button className="icon-button payment" title="Add payment" disabled={debt.status === 'paid'} onClick={() => setPaymentDebt(debt)}><Banknote size={15} /></button><button className="icon-button" title="Payment history" onClick={() => setHistoryDebt(debt)}><History size={15} /></button></div></td><td><button className="icon-button delete" title="Delete debt" onClick={() => deleteDebt(debt.id)}><Trash2 size={15} /></button></td></tr>)}</tbody>{!loading && <tfoot><tr><td colSpan={3} className="total-label">Totals</td><td className="amount total-amount">{currency.format(paidTotal)}</td><td className="amount total-amount">{currency.format(remainingTotal)}</td><td className="amount total-amount">{currency.format(total)}</td><td colSpan={2} /></tr></tfoot>}</table></div>
       <div className="panel-footer">Showing {filtered.length} of {debts.length} debts <span>Updated just now</span></div>
     </section>
     {modalOpen && <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setModalOpen(false)}><div className="modal"><div className="modal-head"><div><span className="modal-icon"><Plus size={20} /></span><div><h3>Add worker debt</h3><p>Record money owed to the company</p></div></div><button className="icon-button" onClick={() => setModalOpen(false)}><X size={19} /></button></div><form onSubmit={addDebt}><div className="form-grid">

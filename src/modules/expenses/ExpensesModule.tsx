@@ -8,7 +8,7 @@ import { createExpense, getExpenses, removeExpense } from './expenseService'
 import type { Expense, ExpenseInput } from './types'
 import type { AppRole } from '../access/types'
 import { canDeleteOwnedRecord } from '../access/types'
-import { getBusinessDate, getBusinessMonth } from '../../lib/businessDate'
+import { formatDate, getBusinessDate, getBusinessMonth } from '../../lib/businessDate'
 import { roundMoney } from '../../lib/money'
 
 const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' })
@@ -83,7 +83,7 @@ export function ExpensesModule({ role, currentUserId }: Props) {
   }
 
   function exportCsv() {
-    const rows = [['Date', 'Merchant', 'Description', 'Quantity', 'Unit', 'Unit price', 'Category', 'Payment method', 'Status', 'Created by', 'Amount'], ...filtered.map((expense) => [expense.expense_date, expense.merchant, expense.description ?? '', String(expense.quantity), expense.unit, String(expense.unit_price), expense.category, expense.payment_method, expense.status, expense.created_by_email, String(expense.amount)])]
+    const rows = [['Date', 'Merchant', 'Description', 'Quantity', 'Unit', 'Unit price', 'Category', 'Payment method', 'Status', 'Created by', 'Amount'], ...filtered.map((expense) => [formatDate(expense.expense_date), expense.merchant, expense.description ?? '', String(expense.quantity), expense.unit, String(expense.unit_price), expense.category, expense.payment_method, expense.status, expense.created_by_email, String(expense.amount)])]
     const csv = rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(',')).join('\n')
     const link = document.createElement('a')
     link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
