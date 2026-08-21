@@ -12,6 +12,7 @@ import { addEmployeeRate, closePreviousSalaryMonthAndGenerate, createEmployee, c
 import type { Employee, MonthlySalary, SalaryClosePreview, SalaryMonthCloseResult, SalaryPaymentInput, SalaryStatus, SalaryWorkInput } from './types'
 import { formatDateTime, formatMonth, getBusinessDate, getBusinessMonth, isFutureBusinessDate } from '../../lib/businessDate'
 import { sumMoney } from '../../lib/money'
+import { sortByEnteredDateDesc } from '../../lib/dateSort'
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'AZN' })
 const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' })
@@ -39,8 +40,9 @@ export function SalariesModule() {
   async function reload() {
     const [employeeRows, salaryRows] = await Promise.all([getEmployees(), getSalaries()])
     setEmployees(employeeRows)
-    setSalaries(salaryRows)
-    return salaryRows
+    const sortedSalaries = sortByEnteredDateDesc(salaryRows, (salary) => salary.salary_month, (salary) => salary.created_at)
+    setSalaries(sortedSalaries)
+    return sortedSalaries
   }
 
   useEffect(() => { reload().catch((error: Error) => setError(error.message)).finally(() => setLoading(false)) }, [])

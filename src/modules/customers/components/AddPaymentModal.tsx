@@ -5,6 +5,7 @@ import type { Customer, CustomerPaymentInput, CustomerPaymentMethod } from '../t
 import type { Sale } from '../../sales/types'
 import { formatDate, getBusinessDate } from '../../../lib/businessDate'
 import { roundMoney, sumMoney } from '../../../lib/money'
+import { DateInput } from '../../../components/DateInput'
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'AZN' })
 
@@ -94,7 +95,7 @@ export function AddPaymentModal({ customer, sales, saving, allowedPaymentMethods
     <div className="modal-head"><div><span className="modal-icon"><Banknote size={20} /></span><div><h3>Record customer payment</h3><p>{customer.name}</p></div></div><button type="button" className="icon-button" disabled={saving} onClick={onClose}><X size={19} /></button></div>
     <form onSubmit={submit}>
       <div className="form-grid">
-        <label>Date<span>*</span><input type="date" max={today} required value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} /></label>
+        <label>Date<span>*</span><DateInput max={today} required value={paymentDate} onChange={setPaymentDate} /></label>
         <label>Amount<span>*</span><div className="money-input"><span>₼</span><input autoFocus type="number" min="0.01" step="0.01" required value={amount} onChange={(event) => changeAmount(event.target.value)} /></div></label>
         <label>Payment method<select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as CustomerPaymentMethod)}>{customerPaymentMethods.filter((method) => allowedPaymentMethods.includes(method)).map((method) => <option key={method}>{method}</option>)}</select></label>
         <label>Reference<input value={reference} onChange={(event) => setReference(event.target.value)} placeholder="Receipt or transfer reference" /></label>

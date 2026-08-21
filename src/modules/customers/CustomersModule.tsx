@@ -18,6 +18,7 @@ import type {
 } from './types'
 import { isFutureBusinessDate } from '../../lib/businessDate'
 import { sumMoney } from '../../lib/money'
+import { sortByEnteredDateDesc } from '../../lib/dateSort'
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'AZN' })
 const bankTransferOnly = ['Bank transfer'] as const satisfies readonly CustomerPaymentMethod[]
@@ -41,8 +42,8 @@ export function CustomersModule({ role, currentUserId }: Props) {
   const loadWorkspace = useCallback(async () => {
     const workspace = await getSalesWorkspace()
     setCustomers(workspace.customers)
-    setPayments(workspace.payments)
-    setSales(workspace.sales)
+    setPayments(sortByEnteredDateDesc(workspace.payments, (payment) => payment.payment_date, (payment) => payment.created_at))
+    setSales(sortByEnteredDateDesc(workspace.sales, (sale) => sale.sale_date, (sale) => sale.created_at))
   }, [])
 
   useEffect(() => {

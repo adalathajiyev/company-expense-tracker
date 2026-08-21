@@ -7,6 +7,8 @@ import { createSale, getSalesWorkspace, removeSale } from './salesService'
 import type { Sale, SaleCategory, SaleInput, SalePaymentMethod, SaleStatus } from './types'
 import { formatDate, getBusinessMonth } from '../../lib/businessDate'
 import { roundMoney, sumMoney } from '../../lib/money'
+import { DateInput } from '../../components/DateInput'
+import { sortByEnteredDateDesc } from '../../lib/dateSort'
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'AZN' })
 const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' })
@@ -33,7 +35,7 @@ export function SalesModule({ role, currentUserId }: Props) {
   const loadWorkspace = useCallback(async () => {
     const workspace = await getSalesWorkspace()
     setCustomers(workspace.customers)
-    setSales(workspace.sales)
+    setSales(sortByEnteredDateDesc(workspace.sales, (sale) => sale.sale_date, (sale) => sale.created_at))
   }, [])
 
   useEffect(() => {
@@ -146,7 +148,7 @@ export function SalesModule({ role, currentUserId }: Props) {
       <label className="wide">Customer<span>*</span><select autoFocus required value={form.customer_id} onChange={(event) => setForm({ ...form, customer_id: event.target.value })}><option value="" disabled>Select customer</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
       <label className="wide">Product sold<span>*</span><input required value={form.product} onChange={(event) => setForm({ ...form, product: event.target.value })} placeholder="Product or service name" /></label>
       <label className="wide">Description<textarea value={form.description ?? ''} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Optional details about this sale" /></label>
-      <label>Category<span>*</span><select required value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value as SaleCategory })}>{saleCategories.map((category) => <option key={category}>{category}</option>)}</select></label><label>Date<span>*</span><input type="date" required value={form.sale_date} onChange={(event) => setForm({ ...form, sale_date: event.target.value })} /></label>
+      <label>Category<span>*</span><select required value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value as SaleCategory })}>{saleCategories.map((category) => <option key={category}>{category}</option>)}</select></label><label>Date<span>*</span><DateInput required value={form.sale_date} onChange={(value) => setForm({ ...form, sale_date: value })} /></label>
       <label>Unit price<span>*</span><div className="money-input"><span>₼</span><input type="number" min="0.01" step="0.01" required value={form.unit_price || ''} onChange={(event) => setForm({ ...form, unit_price: Number(event.target.value) })} /></div></label><label>Quantity<span>*</span><input type="number" min="0.001" step="0.001" required value={form.quantity || ''} onChange={(event) => setForm({ ...form, quantity: event.target.value === '' ? 0 : Number(event.target.value) })} /></label>
       <label>Unit<select value={form.unit} onChange={(event) => setForm({ ...form, unit: event.target.value })}>{units.map((unit) => <option key={unit}>{unit}</option>)}</select></label><label>Expected payment method<select value={form.payment_method} onChange={(event) => setForm({ ...form, payment_method: event.target.value as SalePaymentMethod })}>{allowedPaymentMethods.map((method) => <option key={method}>{method}</option>)}</select></label>
       <div className="wide calculated-total"><span>Calculated total</span><strong>{currency.format(form.quantity * form.unit_price)}</strong><small>{form.quantity || 0} × {currency.format(form.unit_price || 0)}</small></div>

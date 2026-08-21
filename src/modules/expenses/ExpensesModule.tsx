@@ -10,6 +10,7 @@ import type { AppRole } from '../access/types'
 import { canDeleteOwnedRecord } from '../access/types'
 import { formatDate, getBusinessDate, getBusinessMonth } from '../../lib/businessDate'
 import { roundMoney } from '../../lib/money'
+import { sortByEnteredDateDesc } from '../../lib/dateSort'
 
 const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' })
 
@@ -31,7 +32,7 @@ export function ExpensesModule({ role, currentUserId }: Props) {
 
   useEffect(() => {
     getExpenses()
-      .then(setExpenses)
+      .then((rows) => setExpenses(sortByEnteredDateDesc(rows, (expense) => expense.expense_date, (expense) => expense.created_at)))
       .catch((error: Error) => setError(error.message))
       .finally(() => setLoading(false))
   }, [])
@@ -59,7 +60,7 @@ export function ExpensesModule({ role, currentUserId }: Props) {
     try {
       const amount = roundMoney(input.quantity * input.unit_price)
       const expense = await createExpense({ ...input, amount })
-      setExpenses((current) => [expense, ...current])
+      setExpenses((current) => sortByEnteredDateDesc([...current, expense], (item) => item.expense_date, (item) => item.created_at))
       setModalOpen(false)
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Could not add the expense.')

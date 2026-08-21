@@ -7,6 +7,8 @@ import { createDebt, createDebtPayment, getDebts, removeDebt, removeDebtPayment 
 import type { Debt, DebtInput, DebtPaymentInput, DebtStatus } from './types'
 import { formatDate, getBusinessMonth, isFutureBusinessDate } from '../../lib/businessDate'
 import { sumMoney } from '../../lib/money'
+import { DateInput } from '../../components/DateInput'
+import { sortByEnteredDateDesc } from '../../lib/dateSort'
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'AZN' })
 const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' })
@@ -26,7 +28,7 @@ export function DebtsModule() {
   const [historyDebt, setHistoryDebt] = useState<Debt | null>(null)
   const [error, setError] = useState('')
 
-  useEffect(() => { getDebts().then(setDebts).catch((error: Error) => setError(error.message)).finally(() => setLoading(false)) }, [])
+  useEffect(() => { getDebts().then((rows) => setDebts(sortByEnteredDateDesc(rows, (debt) => debt.debt_date, (debt) => debt.created_at))).catch((error: Error) => setError(error.message)).finally(() => setLoading(false)) }, [])
   const periods = useMemo(() => { const months = [...new Set(debts.map((debt) => debt.debt_date.slice(0, 7)).concat(currentMonth))].sort().reverse(); return { months, years: [...new Set(months.map((month) => month.slice(0, 4)))].sort().reverse() } }, [debts, currentMonth])
   const filtered = useMemo(() => debts.filter((debt) => {
     const matchesPeriod = period === 'all' || debt.debt_date.startsWith(period.split(':')[1])
@@ -40,7 +42,7 @@ export function DebtsModule() {
 
   async function addDebt(event: React.FormEvent) {
     event.preventDefault(); setSaving(true); setError('')
-    try { const debt = await createDebt(form); setDebts((current) => [debt, ...current]); setModalOpen(false); setForm(createEmptyDebt()) }
+    try { const debt = await createDebt(form); setDebts((current) => sortByEnteredDateDesc([...current, debt], (item) => item.debt_date, (item) => item.created_at)); setModalOpen(false); setForm(createEmptyDebt()) }
     catch (error) { setError(error instanceof Error ? error.message : 'Could not add the debt.') }
     finally { setSaving(false) }
   }
@@ -54,7 +56,7 @@ export function DebtsModule() {
     try {
       await createDebtPayment(input)
       setPaymentDebt(null)
-      try { setDebts(await getDebts()) }
+      try { const rows = await getDebts(); setDebts(sortByEnteredDateDesc(rows, (debt) => debt.debt_date, (debt) => debt.created_at)) }
       catch { setError('Payment was saved, but the latest debt balances could not be refreshed. Reload the page to see it.') }
     }
     catch (error) { setError(error instanceof Error ? error.message : 'Could not add the debt payment.') }
@@ -63,7 +65,7 @@ export function DebtsModule() {
 
   async function deletePayment(paymentId: string) {
     if (!window.confirm('Are you sure you want to delete this debt payment?')) return
-    try { await removeDebtPayment(paymentId); const updated = await getDebts(); setDebts(updated); setHistoryDebt((current) => current ? updated.find((debt) => debt.id === current.id) ?? null : null) }
+    try { await removeDebtPayment(paymentId); const updated = sortByEnteredDateDesc(await getDebts(), (debt) => debt.debt_date, (debt) => debt.created_at); setDebts(updated); setHistoryDebt((current) => current ? updated.find((debt) => debt.id === current.id) ?? null : null) }
     catch (error) { setError(error instanceof Error ? error.message : 'Could not delete the debt payment.') }
   }
 
@@ -84,7 +86,7 @@ export function DebtsModule() {
     </section>
     {modalOpen && <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setModalOpen(false)}><div className="modal"><div className="modal-head"><div><span className="modal-icon"><Plus size={20} /></span><div><h3>Add worker debt</h3><p>Record money owed to the company</p></div></div><button className="icon-button" onClick={() => setModalOpen(false)}><X size={19} /></button></div><form onSubmit={addDebt}><div className="form-grid">
       <label className="wide">Worker name<span>*</span><input autoFocus required value={form.worker_name} onChange={(e) => setForm({ ...form, worker_name: e.target.value })} placeholder="Worker's full name" /></label>
-      <label>Date<span>*</span><input type="date" required value={form.debt_date} onChange={(e) => setForm({ ...form, debt_date: e.target.value })} /></label><label>Initial debt<span>*</span><div className="money-input"><span>₼</span><input type="number" min="0.01" step="0.01" required value={form.amount || ''} onChange={(e) => setForm({ ...form, amount: e.target.value === '' ? 0 : Number(e.target.value) })} placeholder="1000.00" /></div></label>
+      <label>Date<span>*</span><DateInput required value={form.debt_date} onChange={(value) => setForm({ ...form, debt_date: value })} /></label><label>Initial debt<span>*</span><div className="money-input"><span>₼</span><input type="number" min="0.01" step="0.01" required value={form.amount || ''} onChange={(e) => setForm({ ...form, amount: e.target.value === '' ? 0 : Number(e.target.value) })} placeholder="1000.00" /></div></label>
       <label className="wide">Description<textarea value={form.description ?? ''} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Reason or details for this debt" /></label>
       </div><div className="modal-actions"><button type="button" className="button secondary" onClick={() => setModalOpen(false)}>Cancel</button><button className="button primary" disabled={saving}>{saving ? 'Saving…' : 'Add debt'}</button></div></form></div></div>}
     {paymentDebt && <AddDebtPaymentModal debt={paymentDebt} saving={saving} onClose={() => setPaymentDebt(null)} onSubmit={addPayment} />}
