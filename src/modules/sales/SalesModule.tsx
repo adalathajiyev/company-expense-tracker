@@ -6,11 +6,14 @@ import { createEmptySale, paymentMethods, saleCategories, units } from './consta
 import { createSale, getSalesWorkspace, removeSale } from './salesService'
 import type { Sale, SaleCategory, SaleInput, SalePaymentMethod, SaleStatus } from './types'
 import { formatDate, getBusinessMonth } from '../../lib/businessDate'
-import { roundMoney, sumMoney } from '../../lib/money'
+import { sumMoney } from '../../lib/money'
 import { DateInput } from '../../components/DateInput'
 import { sortByEnteredDateDesc } from '../../lib/dateSort'
+import { calculateSaleAmount } from './saleCalculations'
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'AZN' })
+const preciseCurrency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'AZN', minimumFractionDigits: 2, maximumFractionDigits: 6 })
+const quantityFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 6 })
 const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' })
 const statusLabels: Record<SaleStatus, string> = { paid: 'Paid', partially_paid: 'Partially paid', unpaid: 'Unpaid' }
 const bankTransferOnly = ['Bank transfer'] as const satisfies readonly SalePaymentMethod[]
@@ -59,27 +62,31 @@ export function SalesModule({ role, currentUserId }: Props) {
 
   const total = sumMoney(filtered.map((sale) => Number(sale.amount)))
   const paidTotal = sumMoney(filtered.map((sale) => Number(sale.paid_amount)))
+  const calculatedAmount = calculateSaleAmount(form.quantity, form.unit_price)
 
   async function addSale(event: React.FormEvent) {
     event.preventDefault()
     setSaving(true)
     setError('')
-    const amount = roundMoney(form.quantity * form.unit_price)
-    const input = { ...form, amount }
 
-    if (!input.customer_id) {
+    if (!form.customer_id) {
       setSaving(false)
       setError('Select a customer before adding the sale.')
       return
     }
-    if (isOfficeAccountant && input.payment_method !== 'Bank transfer') {
+    if (!calculatedAmount) {
+      setSaving(false)
+      setError('Quantity and unit price must be greater than zero, use no more than 6 decimal places, and produce a total of at least ₼0.01.')
+      return
+    }
+    if (isOfficeAccountant && form.payment_method !== 'Bank transfer') {
       setSaving(false)
       setError('Office accountants can only add bank transfer sales.')
       return
     }
 
     try {
-      await createSale(input)
+      await createSale(form)
       setSaleModalOpen(false)
       setForm({ ...createEmptySale(), customer_id: customers[0]?.id ?? '', payment_method: allowedPaymentMethods[0] ?? 'Cash' })
       try { await loadWorkspace() }
@@ -129,10 +136,10 @@ export function SalesModule({ role, currentUserId }: Props) {
         return <tr key={sale.id}>
           <td className="date-cell">{formatDate(sale.sale_date)}</td>
           <td><strong className="customer-name">{sale.customer_name}</strong></td>
-          <td><div className="merchant"><span className="merchant-icon blue">{sale.product[0]}</span><div><strong>{sale.product}</strong><span>{currency.format(Number(sale.unit_price))} per {sale.unit}</span></div></div></td>
+          <td><div className="merchant"><span className="merchant-icon blue">{sale.product[0]}</span><div><strong>{sale.product}</strong><span>{preciseCurrency.format(Number(sale.unit_price))} per {sale.unit}</span></div></div></td>
           <td className="sale-description" title={sale.description ?? undefined}>{sale.description || 'No description'}</td>
           <td><span className="category blue">{sale.category}</span></td>
-          <td>{sale.quantity} {sale.unit}</td>
+          <td>{quantityFormatter.format(Number(sale.quantity))} {sale.unit}</td>
           <td><span className={`category ${sale.payment_method === 'Cash' ? 'green' : 'blue'}`}>{sale.payment_method}</span></td>
           <td><span className={`status ${sale.status === 'paid' ? 'paid' : 'pending'}`}><i />{statusLabels[sale.status]}</span></td>
           <td className="creator-cell">{sale.created_by_email}</td>
@@ -149,9 +156,9 @@ export function SalesModule({ role, currentUserId }: Props) {
       <label className="wide">Product sold<span>*</span><input required value={form.product} onChange={(event) => setForm({ ...form, product: event.target.value })} placeholder="Product or service name" /></label>
       <label className="wide">Description<textarea value={form.description ?? ''} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Optional details about this sale" /></label>
       <label>Category<span>*</span><select required value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value as SaleCategory })}>{saleCategories.map((category) => <option key={category}>{category}</option>)}</select></label><label>Date<span>*</span><DateInput required value={form.sale_date} onChange={(value) => setForm({ ...form, sale_date: value })} /></label>
-      <label>Unit price<span>*</span><div className="money-input"><span>₼</span><input type="number" min="0.01" step="0.01" required value={form.unit_price || ''} onChange={(event) => setForm({ ...form, unit_price: Number(event.target.value) })} /></div></label><label>Quantity<span>*</span><input type="number" min="0.001" step="0.001" required value={form.quantity || ''} onChange={(event) => setForm({ ...form, quantity: event.target.value === '' ? 0 : Number(event.target.value) })} /></label>
+      <label>Unit price<span>*</span><div className="money-input"><span>₼</span><input type="number" min="0.000001" step="0.000001" required value={form.unit_price} onChange={(event) => setForm({ ...form, unit_price: event.target.value })} /></div></label><label>Quantity<span>*</span><input type="number" min="0.000001" step="0.000001" required value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} /></label>
       <label>Unit<select value={form.unit} onChange={(event) => setForm({ ...form, unit: event.target.value })}>{units.map((unit) => <option key={unit}>{unit}</option>)}</select></label><label>Expected payment method<select value={form.payment_method} onChange={(event) => setForm({ ...form, payment_method: event.target.value as SalePaymentMethod })}>{allowedPaymentMethods.map((method) => <option key={method}>{method}</option>)}</select></label>
-      <div className="wide calculated-total"><span>Calculated total</span><strong>{currency.format(form.quantity * form.unit_price)}</strong><small>{form.quantity || 0} × {currency.format(form.unit_price || 0)}</small></div>
+      <div className="wide calculated-total"><span>Calculated total</span><strong>{currency.format(Number(calculatedAmount ?? 0))}</strong><small>{form.quantity || 0} × {form.unit_price ? preciseCurrency.format(Number(form.unit_price)) : currency.format(0)}</small></div>
       </div><div className="modal-actions"><button type="button" className="button secondary" onClick={() => setSaleModalOpen(false)}>Cancel</button><button className="button primary" disabled={saving}>{saving ? 'Saving…' : 'Add sale'}</button></div></form></div></div>}
   </>
 }

@@ -29,4 +29,7 @@ export interface Sale {
   payment_allocations: SalePaymentAllocation[]
 }
 
-export type SaleInput = Pick<Sale, 'customer_id' | 'sale_date' | 'product' | 'description' | 'category' | 'quantity' | 'unit' | 'unit_price' | 'amount' | 'payment_method'>
+export type SaleInput = Pick<Sale, 'customer_id' | 'sale_date' | 'product' | 'description' | 'category' | 'unit' | 'payment_method'> & {
+  quantity: string
+  unit_price: string
+}
