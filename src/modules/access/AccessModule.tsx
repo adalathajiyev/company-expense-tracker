@@ -4,7 +4,7 @@ import { getManagedUsers, setUserRole } from './accessService'
 import { roleLabels, type AppRole, type ManagedUser } from './types'
 import { formatDate, formatDateTime } from '../../lib/businessDate'
 
-const roleOptions: AppRole[] = ['admin', 'main_accountant', 'office_accountant']
+const roleOptions: AppRole[] = ['admin', 'main_accountant', 'office_accountant', 'project_lead']
 
 interface Props { currentUserId: string }
 

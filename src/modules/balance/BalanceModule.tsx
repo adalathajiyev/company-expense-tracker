@@ -3,12 +3,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AddBalanceAdjustmentModal } from './components/AddBalanceAdjustmentModal'
 import { createBalanceAdjustment, getBalanceAdjustments, getCashBalance, removeBalanceAdjustment } from './balanceService'
 import type { BalanceAdjustment, BalanceAdjustmentInput, CashBalance } from './types'
+import { getCashAccounts } from '../cash-accounts/cashAccountService'
+import type { CashAccount } from '../cash-accounts/types'
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'AZN' })
 
 export function BalanceModule() {
   const [summary, setSummary] = useState<CashBalance | null>(null)
   const [adjustments, setAdjustments] = useState<BalanceAdjustment[]>([])
+  const [cashAccounts, setCashAccounts] = useState<CashAccount[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -19,9 +22,10 @@ export function BalanceModule() {
     setLoading(true)
     setError('')
     try {
-      const [balance, balanceAdjustments] = await Promise.all([getCashBalance(), getBalanceAdjustments()])
+      const [balance, balanceAdjustments, accountBalances] = await Promise.all([getCashBalance(), getBalanceAdjustments(), getCashAccounts()])
       setSummary(balance)
       setAdjustments(balanceAdjustments)
+      setCashAccounts(accountBalances)
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Could not load the cash balance.')
     } finally {
@@ -97,6 +101,12 @@ export function BalanceModule() {
     </section>
 
     <p className="balance-note">Cash salary payments reduce the balance immediately. Closing a month moves the allocated amount into Expenses while carried-forward credit remains here, so it is never counted twice.</p>
+
+    <section className="panel balance-cash-accounts-panel">
+      <div className="panel-heading"><div><h3>Cash allocation</h3><p>Where the company’s physical cash is currently held</p></div><span className="panel-heading-icon"><WalletCards size={18} /></span></div>
+      <div className="cash-allocation-grid">{loading ? <span className="cash-allocation-empty">Loading cash accounts…</span> : cashAccounts.length === 0 ? <span className="cash-allocation-empty">No cash accounts are configured.</span> : cashAccounts.map((account) => <article key={account.id}><span><strong>{account.name}</strong><small>{account.custodian_email ?? 'No application custodian'}</small></span><b>{currency.format(Number(account.balance))}</b></article>)}</div>
+      {!loading && cashAccounts.length > 0 && <div className="panel-footer">{cashAccounts.length} cash {cashAccounts.length === 1 ? 'account' : 'accounts'} <span>Total allocated: {currency.format(cashAccounts.reduce((sum, account) => sum + Number(account.balance), 0))}</span></div>}
+    </section>
 
     <section className="panel balance-adjustments-panel">
       <div className="panel-heading">

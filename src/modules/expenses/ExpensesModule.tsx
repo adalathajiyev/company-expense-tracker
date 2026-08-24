@@ -1,4 +1,4 @@
-import { Banknote, CalendarDays, Download, Plus, Search, SlidersHorizontal, X } from 'lucide-react'
+import { Banknote, CalendarDays, Download, Plus, Search, SlidersHorizontal, WalletCards, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { AddExpenseModal } from './components/AddExpenseModal'
 import { DeleteExpenseModal } from './components/DeleteExpenseModal'
@@ -11,6 +11,8 @@ import { canDeleteOwnedRecord } from '../access/types'
 import { formatDate, getBusinessDate, getBusinessMonth } from '../../lib/businessDate'
 import { roundMoney } from '../../lib/money'
 import { sortByEnteredDateDesc } from '../../lib/dateSort'
+import { getCashAccounts } from '../cash-accounts/cashAccountService'
+import type { CashAccount } from '../cash-accounts/types'
 
 const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' })
 
@@ -19,11 +21,13 @@ interface Props { role: AppRole; currentUserId: string }
 export function ExpensesModule({ role, currentUserId }: Props) {
   const currentMonth = getBusinessMonth()
   const [expenses, setExpenses] = useState<Expense[]>([])
+  const [cashAccounts, setCashAccounts] = useState<CashAccount[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('All categories')
   const [paymentMethod, setPaymentMethod] = useState('All payment methods')
+  const [cashAccount, setCashAccount] = useState('All cash accounts')
   const [period, setPeriod] = useState(`month:${currentMonth}`)
   const [saving, setSaving] = useState(false)
   const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null)
@@ -31,8 +35,8 @@ export function ExpensesModule({ role, currentUserId }: Props) {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    getExpenses()
-      .then((rows) => setExpenses(sortByEnteredDateDesc(rows, (expense) => expense.expense_date, (expense) => expense.created_at)))
+    Promise.all([getExpenses(), getCashAccounts()])
+      .then(([rows, accounts]) => { setExpenses(sortByEnteredDateDesc(rows, (expense) => expense.expense_date, (expense) => expense.created_at)); setCashAccounts(accounts) })
       .catch((error: Error) => setError(error.message))
       .finally(() => setLoading(false))
   }, [])
@@ -47,12 +51,13 @@ export function ExpensesModule({ role, currentUserId }: Props) {
     const matchesText = `${expense.merchant} ${expense.description ?? ''}`.toLowerCase().includes(search.toLowerCase())
     const matchesCategory = category === 'All categories' || expense.category === category
     const matchesPaymentMethod = paymentMethod === 'All payment methods' || expense.payment_method === paymentMethod
+    const matchesCashAccount = cashAccount === 'All cash accounts' || expense.cash_account_id === cashAccount
     const [periodType, periodValue] = period.split(':')
     const matchesPeriod = periodType === 'year'
       ? expense.expense_date.startsWith(periodValue)
       : expense.expense_date.startsWith(periodValue)
-    return matchesText && matchesCategory && matchesPaymentMethod && matchesPeriod
-  }), [expenses, search, category, paymentMethod, period])
+    return matchesText && matchesCategory && matchesPaymentMethod && matchesCashAccount && matchesPeriod
+  }), [expenses, search, category, paymentMethod, cashAccount, period])
 
   async function addExpense(input: ExpenseInput) {
     setSaving(true)
@@ -84,7 +89,7 @@ export function ExpensesModule({ role, currentUserId }: Props) {
   }
 
   function exportCsv() {
-    const rows = [['Date', 'Merchant', 'Description', 'Quantity', 'Unit', 'Unit price', 'Category', 'Payment method', 'Status', 'Created by', 'Amount'], ...filtered.map((expense) => [formatDate(expense.expense_date), expense.merchant, expense.description ?? '', String(expense.quantity), expense.unit, String(expense.unit_price), expense.category, expense.payment_method, expense.status, expense.created_by_email, String(expense.amount)])]
+    const rows = [['Date', 'Merchant', 'Description', 'Quantity', 'Unit', 'Unit price', 'Category', 'Payment method', 'Cash account', 'Status', 'Created by', 'Amount'], ...filtered.map((expense) => [formatDate(expense.expense_date), expense.merchant, expense.description ?? '', String(expense.quantity), expense.unit, String(expense.unit_price), expense.category, expense.payment_method, expense.cash_account_name ?? '', expense.status, expense.created_by_email, String(expense.amount)])]
     const csv = rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(',')).join('\n')
     const link = document.createElement('a')
     link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
@@ -96,7 +101,7 @@ export function ExpensesModule({ role, currentUserId }: Props) {
   return <>
     <header>
       <div><p className="eyebrow">COMPANY EXPENSES</p><h1>Expenses</h1><p>Add and manage your company’s daily spending.</p></div>
-      <div className="header-actions"><button className="button secondary" onClick={exportCsv}><Download size={16} /> Export</button><button className="button primary" onClick={() => setModalOpen(true)}><Plus size={17} /> Add expense</button></div>
+      <div className="header-actions"><button className="button secondary" onClick={exportCsv}><Download size={16} /> Export</button><button className="button primary" onClick={() => { if (role === 'project_lead' && cashAccounts.length === 0) { setError('No cash account is assigned to you. Ask the Main Accountant to create or assign one.'); return } setModalOpen(true) }}><Plus size={17} /> Add expense</button></div>
     </header>
 
     {error && <div className="error-banner">{error}<button onClick={() => setError('')}><X size={15} /></button></div>}
@@ -112,13 +117,14 @@ export function ExpensesModule({ role, currentUserId }: Props) {
         <label className="search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search expenses..." /></label>
         <label className="filter"><SlidersHorizontal size={16} /><select aria-label="Filter expenses by category" value={category} onChange={(event) => setCategory(event.target.value)}><option>All categories</option>{categories.map((item) => <option key={item}>{item}</option>)}</select></label>
         <label className="filter payment-filter"><Banknote size={16} /><select aria-label="Filter expenses by payment method" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}><option>All payment methods</option>{paymentMethods.map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label className="filter cash-account-filter"><WalletCards size={16} /><select aria-label="Filter expenses by cash account" value={cashAccount} onChange={(event) => setCashAccount(event.target.value)}><option>All cash accounts</option>{cashAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
         <span className="results">{filtered.length} entries</span>
       </div>
       <ExpensesTable expenses={filtered} loading={loading} canDelete={(expense) => canDeleteOwnedRecord(role, currentUserId, expense.created_by)} onDelete={setExpenseToDelete} />
       <div className="panel-footer">Showing {filtered.length} of {expenses.length} expenses <span>Updated just now</span></div>
     </section>
 
-    {modalOpen && <AddExpenseModal saving={saving} onClose={() => setModalOpen(false)} onSubmit={addExpense} />}
+    {modalOpen && <AddExpenseModal saving={saving} role={role} cashAccounts={cashAccounts} onClose={() => setModalOpen(false)} onSubmit={addExpense} />}
     {expenseToDelete && <DeleteExpenseModal expense={expenseToDelete} deleting={deleting} onCancel={() => setExpenseToDelete(null)} onConfirm={() => deleteExpense(expenseToDelete.id)} />}
   </>
 }

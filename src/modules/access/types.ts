@@ -1,4 +1,4 @@
-export type AppRole = 'admin' | 'main_accountant' | 'office_accountant'
+export type AppRole = 'admin' | 'main_accountant' | 'office_accountant' | 'project_lead'
 
 export interface ManagedUser {
   user_id: string
@@ -12,6 +12,7 @@ export const roleLabels: Record<AppRole, string> = {
   admin: 'Admin',
   main_accountant: 'Main Accountant',
   office_accountant: 'Office Accountant',
+  project_lead: 'Project Lead',
 }
 
 export function hasFullAccess(role: AppRole) {

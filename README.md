@@ -1,6 +1,6 @@
 # Ledgerly Expenses
 
-A responsive company-finance dashboard built with React, TypeScript, Vite, and Supabase. It tracks expenses, owner funding, sales and customer receipts, debts, salaries, and cash balance.
+A responsive company-finance dashboard built with React, TypeScript, Vite, and Supabase. It tracks expenses, owner funding, sales and customer receipts, debts, salaries, and cash held across company custodians.
 
 ## Run locally
 
@@ -51,6 +51,7 @@ Access is enforced by Supabase Row Level Security as well as by the React naviga
 | Admin | Full access to every module and user-role assignments |
 | Main Accountant | Full access to all current business modules |
 | Office Accountant | Can view the Sales and Customers modules, add customers, add only bank-transfer sales and customer payments, and delete only records they created; cannot edit sales |
+| Project Lead | Can view assigned non-main cash accounts, reconcile them, and create or delete their own paid cash expenses against those accounts |
 
 Users that existed when the role migration was applied are assigned `admin` to prevent lockout. New Authentication users have no application access until a row is added to `public.user_roles`. In the Supabase SQL editor, find the user and assign one of the supported roles:
 
@@ -64,9 +65,15 @@ values ('USER_UUID', 'office_accountant')
 on conflict (user_id) do update set role = excluded.role;
 ```
 
-Supported values are `admin`, `main_accountant`, and `office_accountant`.
+Supported values are `admin`, `main_accountant`, `office_accountant`, and `project_lead`.
 
 Expenses, owner-funding transactions, sales, and customer payments store an immutable creator ID and email snapshot. Admins can delete any of these records; other authorized users can delete only records they created.
+
+## Cash accounts
+
+The Cash Accounts module treats Main Cash, procurement floats, and project cash as separate custody accounts. Admins and Main Accountants can create accounts and transfer cash between them. Assigning a Project Lead as custodian gives that user access only to the assigned non-main account and its expenses. Account-to-account transfers are internal movements and do not change total company cash.
+
+Use reconciliation records to compare each account's calculated ledger balance with the physical cash counted by its custodian. Reconciliations document differences; they do not alter the ledger balance.
 
 ## Customer payments
 

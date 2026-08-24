@@ -16,5 +16,6 @@ export function createEmptyExpense(): ExpenseInput {
     unit_price: 0,
     amount: 0,
     status: 'paid',
+    cash_account_id: null,
   }
 }

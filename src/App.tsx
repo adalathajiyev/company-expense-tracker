@@ -13,8 +13,9 @@ import { getCurrentUserRole } from './modules/access/accessService'
 import { hasFullAccess, roleLabels, type AppRole } from './modules/access/types'
 import { AccessModule } from './modules/access/AccessModule'
 import { CustomersModule } from './modules/customers/CustomersModule'
+import { CashAccountsModule } from './modules/cash-accounts/CashAccountsModule'
 
-type ModuleId = 'expenses' | 'owner-funding' | 'sales' | 'customers' | 'debts' | 'salaries' | 'balance' | 'access'
+type ModuleId = 'expenses' | 'owner-funding' | 'sales' | 'customers' | 'debts' | 'salaries' | 'balance' | 'cash-accounts' | 'access'
 
 function App() {
   const [activeModule, setActiveModule] = useState<ModuleId>('expenses')
@@ -70,34 +71,38 @@ function App() {
 
   const fullAccess = hasFullAccess(role)
   const canManageAccess = role === 'admin'
-  const visibleModule: ModuleId = !fullAccess
-    ? activeModule === 'customers' ? 'customers' : 'sales'
-    : activeModule === 'access' && !canManageAccess ? 'expenses' : activeModule
+  const isProjectLead = role === 'project_lead'
+  const allowedModules: ModuleId[] = fullAccess
+    ? ['expenses', 'owner-funding', 'sales', 'customers', 'debts', 'salaries', 'balance', 'cash-accounts', ...(canManageAccess ? ['access' as const] : [])]
+    : isProjectLead ? ['expenses', 'cash-accounts'] : ['sales', 'customers']
+  const visibleModule: ModuleId = allowedModules.includes(activeModule) ? activeModule : allowedModules[0]
 
   return <div className="app-shell">
     <aside>
       <div className="brand"><span className="brand-mark"><span /></span><span>Ledgerly</span></div>
       <div className="mobile-controls">
         <select aria-label="Select module" value={visibleModule} onChange={(event) => setActiveModule(event.target.value as ModuleId)}>
-          {fullAccess && <option value="expenses">Expenses</option>}
+          {(fullAccess || isProjectLead) && <option value="expenses">Expenses</option>}
           {fullAccess && <option value="owner-funding">Owner funding</option>}
           <option value="sales">Sales</option>
           <option value="customers">Customers</option>
           {fullAccess && <option value="debts">Debts</option>}
           {fullAccess && <option value="salaries">Salaries</option>}
           {fullAccess && <option value="balance">Balance</option>}
+          {(fullAccess || isProjectLead) && <option value="cash-accounts">Cash accounts</option>}
           {canManageAccess && <option value="access">Access</option>}
         </select>
         <button className="icon-button" aria-label="Sign out" title="Sign out" onClick={() => supabase.auth.signOut()}><LogOut size={18} /></button>
       </div>
       <nav>
-        {fullAccess && <button className={visibleModule === 'expenses' ? 'active' : ''} onClick={() => setActiveModule('expenses')}><ReceiptText size={18} /> Expenses</button>}
+        {(fullAccess || isProjectLead) && <button className={visibleModule === 'expenses' ? 'active' : ''} onClick={() => setActiveModule('expenses')}><ReceiptText size={18} /> Expenses</button>}
         {fullAccess && <button className={visibleModule === 'owner-funding' ? 'active' : ''} onClick={() => setActiveModule('owner-funding')}><Landmark size={18} /> Owner funding</button>}
         <button className={visibleModule === 'sales' ? 'active' : ''} onClick={() => setActiveModule('sales')}><ShoppingBag size={18} /> Sales</button>
         <button className={visibleModule === 'customers' ? 'active' : ''} onClick={() => setActiveModule('customers')}><Users size={18} /> Customers</button>
         {fullAccess && <button className={visibleModule === 'debts' ? 'active' : ''} onClick={() => setActiveModule('debts')}><HandCoins size={18} /> Debts</button>}
         {fullAccess && <button className={visibleModule === 'salaries' ? 'active' : ''} onClick={() => setActiveModule('salaries')}><Banknote size={18} /> Salaries</button>}
         {fullAccess && <button className={visibleModule === 'balance' ? 'active' : ''} onClick={() => setActiveModule('balance')}><WalletCards size={18} /> Balance</button>}
+        {(fullAccess || isProjectLead) && <button className={visibleModule === 'cash-accounts' ? 'active' : ''} onClick={() => setActiveModule('cash-accounts')}><WalletCards size={18} /> Cash accounts</button>}
         {canManageAccess && <><div className="nav-label">Administration</div><button className={visibleModule === 'access' ? 'active' : ''} onClick={() => setActiveModule('access')}><ShieldCheck size={18} /> Access</button></>}
       </nav>
       <div className="sidebar-bottom">
@@ -105,7 +110,7 @@ function App() {
       </div>
     </aside>
 
-    <main>{visibleModule === 'expenses' ? <ExpensesModule role={role} currentUserId={session.user.id} /> : visibleModule === 'owner-funding' ? <OwnerFundingModule role={role} currentUserId={session.user.id} /> : visibleModule === 'sales' ? <SalesModule role={role} currentUserId={session.user.id} /> : visibleModule === 'customers' ? <CustomersModule role={role} currentUserId={session.user.id} /> : visibleModule === 'debts' ? <DebtsModule /> : visibleModule === 'salaries' ? <SalariesModule /> : visibleModule === 'access' ? <AccessModule currentUserId={session.user.id} /> : <BalanceModule />}</main>
+    <main>{visibleModule === 'expenses' ? <ExpensesModule role={role} currentUserId={session.user.id} /> : visibleModule === 'owner-funding' ? <OwnerFundingModule role={role} currentUserId={session.user.id} /> : visibleModule === 'sales' ? <SalesModule role={role} currentUserId={session.user.id} /> : visibleModule === 'customers' ? <CustomersModule role={role} currentUserId={session.user.id} /> : visibleModule === 'debts' ? <DebtsModule /> : visibleModule === 'salaries' ? <SalariesModule /> : visibleModule === 'cash-accounts' ? <CashAccountsModule role={role} /> : visibleModule === 'access' ? <AccessModule currentUserId={session.user.id} /> : <BalanceModule />}</main>
   </div>
 }
 
