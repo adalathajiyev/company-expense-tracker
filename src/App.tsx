@@ -1,4 +1,4 @@
-import { Banknote, HandCoins, Landmark, LockKeyhole, LogOut, MoreHorizontal, ReceiptText, ShieldCheck, ShoppingBag, Users, WalletCards } from 'lucide-react'
+import { Banknote, FolderKanban, HandCoins, Landmark, LockKeyhole, LogOut, MoreHorizontal, ReceiptText, ShieldCheck, ShoppingBag, Users, WalletCards } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { AuthScreen } from './components/AuthScreen'
@@ -14,8 +14,9 @@ import { hasFullAccess, roleLabels, type AppRole } from './modules/access/types'
 import { AccessModule } from './modules/access/AccessModule'
 import { CustomersModule } from './modules/customers/CustomersModule'
 import { CashAccountsModule } from './modules/cash-accounts/CashAccountsModule'
+import { ProjectsModule } from './modules/projects/ProjectsModule'
 
-type ModuleId = 'expenses' | 'owner-funding' | 'sales' | 'customers' | 'debts' | 'salaries' | 'balance' | 'cash-accounts' | 'access'
+type ModuleId = 'expenses' | 'projects' | 'owner-funding' | 'sales' | 'customers' | 'debts' | 'salaries' | 'balance' | 'cash-accounts' | 'access'
 
 function App() {
   const [activeModule, setActiveModule] = useState<ModuleId>('expenses')
@@ -73,7 +74,7 @@ function App() {
   const canManageAccess = role === 'admin'
   const isProjectLead = role === 'project_lead'
   const allowedModules: ModuleId[] = fullAccess
-    ? ['expenses', 'owner-funding', 'sales', 'customers', 'debts', 'salaries', 'balance', 'cash-accounts', ...(canManageAccess ? ['access' as const] : [])]
+    ? ['expenses', 'projects', 'owner-funding', 'sales', 'customers', 'debts', 'salaries', 'balance', 'cash-accounts', ...(canManageAccess ? ['access' as const] : [])]
     : isProjectLead ? ['expenses', 'cash-accounts'] : ['sales', 'customers']
   const visibleModule: ModuleId = allowedModules.includes(activeModule) ? activeModule : allowedModules[0]
 
@@ -83,6 +84,7 @@ function App() {
       <div className="mobile-controls">
         <select aria-label="Select module" value={visibleModule} onChange={(event) => setActiveModule(event.target.value as ModuleId)}>
           {(fullAccess || isProjectLead) && <option value="expenses">Expenses</option>}
+          {fullAccess && <option value="projects">Projects</option>}
           {fullAccess && <option value="owner-funding">Owner funding</option>}
           <option value="sales">Sales</option>
           <option value="customers">Customers</option>
@@ -96,6 +98,7 @@ function App() {
       </div>
       <nav>
         {(fullAccess || isProjectLead) && <button className={visibleModule === 'expenses' ? 'active' : ''} onClick={() => setActiveModule('expenses')}><ReceiptText size={18} /> Expenses</button>}
+        {fullAccess && <button className={visibleModule === 'projects' ? 'active' : ''} onClick={() => setActiveModule('projects')}><FolderKanban size={18} /> Projects</button>}
         {fullAccess && <button className={visibleModule === 'owner-funding' ? 'active' : ''} onClick={() => setActiveModule('owner-funding')}><Landmark size={18} /> Owner funding</button>}
         <button className={visibleModule === 'sales' ? 'active' : ''} onClick={() => setActiveModule('sales')}><ShoppingBag size={18} /> Sales</button>
         <button className={visibleModule === 'customers' ? 'active' : ''} onClick={() => setActiveModule('customers')}><Users size={18} /> Customers</button>
@@ -110,7 +113,7 @@ function App() {
       </div>
     </aside>
 
-    <main>{visibleModule === 'expenses' ? <ExpensesModule role={role} currentUserId={session.user.id} /> : visibleModule === 'owner-funding' ? <OwnerFundingModule role={role} currentUserId={session.user.id} /> : visibleModule === 'sales' ? <SalesModule role={role} currentUserId={session.user.id} /> : visibleModule === 'customers' ? <CustomersModule role={role} currentUserId={session.user.id} /> : visibleModule === 'debts' ? <DebtsModule /> : visibleModule === 'salaries' ? <SalariesModule /> : visibleModule === 'cash-accounts' ? <CashAccountsModule role={role} /> : visibleModule === 'access' ? <AccessModule currentUserId={session.user.id} /> : <BalanceModule />}</main>
+    <main>{visibleModule === 'expenses' ? <ExpensesModule role={role} currentUserId={session.user.id} /> : visibleModule === 'projects' ? <ProjectsModule /> : visibleModule === 'owner-funding' ? <OwnerFundingModule role={role} currentUserId={session.user.id} /> : visibleModule === 'sales' ? <SalesModule role={role} currentUserId={session.user.id} /> : visibleModule === 'customers' ? <CustomersModule role={role} currentUserId={session.user.id} /> : visibleModule === 'debts' ? <DebtsModule /> : visibleModule === 'salaries' ? <SalariesModule /> : visibleModule === 'cash-accounts' ? <CashAccountsModule role={role} /> : visibleModule === 'access' ? <AccessModule currentUserId={session.user.id} /> : <BalanceModule />}</main>
   </div>
 }
 

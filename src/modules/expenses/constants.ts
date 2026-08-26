@@ -10,12 +10,13 @@ export function createEmptyExpense(): ExpenseInput {
     merchant: '',
     description: '',
     category: 'Office',
-    payment_method: 'Bank transfer',
+    payment_method: 'Cash',
     quantity: 1,
     unit: 'Piece',
     unit_price: 0,
     amount: 0,
     status: 'paid',
     cash_account_id: null,
+    project_id: null,
   }
 }

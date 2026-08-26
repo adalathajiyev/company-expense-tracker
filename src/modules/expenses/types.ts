@@ -16,9 +16,11 @@ export interface Expense {
   salary_source_id: string | null
   cash_account_id: string | null
   cash_account_name: string | null
+  project_id: string | null
+  project_name: string | null
   created_by: string | null
   created_by_email: string
   created_at: string
 }
 
-export type ExpenseInput = Omit<Expense, 'id' | 'created_at' | 'receipt_url' | 'salary_source_id' | 'cash_account_name' | 'created_by' | 'created_by_email'>
+export type ExpenseInput = Omit<Expense, 'id' | 'created_at' | 'receipt_url' | 'salary_source_id' | 'cash_account_name' | 'project_name' | 'created_by' | 'created_by_email'>

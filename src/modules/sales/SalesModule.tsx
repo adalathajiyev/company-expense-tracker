@@ -1,4 +1,4 @@
-import { CalendarDays, Plus, Search, Tags, Trash2, X } from 'lucide-react'
+import { Banknote, CalendarDays, Plus, Search, Tags, Trash2, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { canDeleteOwnedRecord, type AppRole } from '../access/types'
 import type { Customer } from '../customers/types'
@@ -29,6 +29,7 @@ export function SalesModule({ role, currentUserId }: Props) {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<'All categories' | SaleCategory>('All categories')
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState<'All payment methods' | SalePaymentMethod>('All payment methods')
   const [period, setPeriod] = useState(`month:${currentMonth}`)
   const [saleModalOpen, setSaleModalOpen] = useState(false)
   const [form, setForm] = useState<SaleInput>(createEmptySale)
@@ -57,8 +58,9 @@ export function SalesModule({ role, currentUserId }: Props) {
     const query = search.trim().toLowerCase()
     return sales.filter((sale) => sale.sale_date.startsWith(periodValue)
       && (categoryFilter === 'All categories' || sale.category === categoryFilter)
+      && (paymentMethodFilter === 'All payment methods' || sale.payment_method === paymentMethodFilter)
       && (!query || `${sale.product} ${sale.customer_name} ${sale.category} ${sale.description ?? ''}`.toLowerCase().includes(query)))
-  }, [sales, search, period, categoryFilter])
+  }, [sales, search, period, categoryFilter, paymentMethodFilter])
 
   const total = sumMoney(filtered.map((sale) => Number(sale.amount)))
   const paidTotal = sumMoney(filtered.map((sale) => Number(sale.paid_amount)))
@@ -129,7 +131,7 @@ export function SalesModule({ role, currentUserId }: Props) {
 
     <section className="panel">
       <div className="panel-heading"><div><h3>All sales</h3><p>Manage receipts and allocations from the Customers tab</p></div><label className="period-select"><CalendarDays size={15} /><select value={period} onChange={(event) => setPeriod(event.target.value)}><optgroup label="Whole year">{periods.years.map((year) => <option key={year} value={`year:${year}`}>{year} — whole year</option>)}</optgroup><optgroup label="By month">{periods.months.map((month) => <option key={month} value={`month:${month}`}>{monthFormatter.format(new Date(`${month}-01T12:00:00`))}</option>)}</optgroup></select></label></div>
-      <div className="toolbar"><label className="search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search products, customers, descriptions, or categories..." /></label><label className="filter"><Tags size={16} /><select aria-label="Filter sales by category" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value as 'All categories' | SaleCategory)}><option>All categories</option>{saleCategories.map((category) => <option key={category}>{category}</option>)}</select></label><span className="results">{filtered.length} entries</span></div>
+      <div className="toolbar"><label className="search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search products, customers, descriptions, or categories..." /></label><label className="filter"><Tags size={16} /><select aria-label="Filter sales by category" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value as 'All categories' | SaleCategory)}><option>All categories</option>{saleCategories.map((category) => <option key={category}>{category}</option>)}</select></label><label className="filter payment-filter"><Banknote size={16} /><select aria-label="Filter sales by payment method" value={paymentMethodFilter} onChange={(event) => setPaymentMethodFilter(event.target.value as 'All payment methods' | SalePaymentMethod)}><option>All payment methods</option>{paymentMethods.map((method) => <option key={method}>{method}</option>)}</select></label><span className="results">{filtered.length} entries</span></div>
       <div className="table-wrap sales-table"><table><thead><tr><th>Date</th><th>Customer</th><th>Product</th><th>Description</th><th>Category</th><th>Quantity</th><th>Method</th><th>Status</th><th>Created by</th><th className="amount">Allocated</th><th className="amount">Total</th><th /></tr></thead><tbody>{loading ? <tr><td colSpan={12} className="empty">Loading sales…</td></tr> : filtered.length === 0 ? <tr><td colSpan={12} className="empty">No sales for this period.</td></tr> : filtered.map((sale) => {
         const ownedDelete = canDeleteOwnedRecord(role, currentUserId, sale.created_by)
         const canDelete = ownedDelete && Number(sale.paid_amount) === 0
