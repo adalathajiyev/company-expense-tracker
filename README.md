@@ -1,4 +1,4 @@
-# Ledgerly Expenses
+# Bridge Finance
 
 A responsive company-finance dashboard built with React, TypeScript, Vite, and Supabase. It tracks expenses, owner funding, sales and customer receipts, debts, salaries, and cash held across company custodians.
 

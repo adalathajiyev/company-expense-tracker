@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { LockKeyhole } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { BridgeLogo } from './BridgeLogo'
 
 interface Props { initialError?: string }
 
@@ -21,7 +22,7 @@ export function AuthScreen({ initialError = '' }: Props) {
 
   return <div className="auth-page">
     <div className="auth-card">
-      <div className="brand auth-brand"><span className="brand-mark"><span /></span><span>Ledgerly</span></div>
+      <div className="brand auth-brand"><BridgeLogo /><span className="brand-wordmark">Bridge</span></div>
       <span className="auth-icon"><LockKeyhole size={22} /></span>
       <h1>Sign in</h1>
       <p>Use your company account to manage financial records.</p>

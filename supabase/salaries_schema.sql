@@ -587,7 +587,7 @@ begin
       current_date,
       'Salary ' || to_char(closing_month, 'FMMonth YYYY'),
       employee.name,
-      'Payroll',
+      'Salaries',
       'Cash',
       1,
       'Service',

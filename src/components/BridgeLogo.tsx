@@ -1,0 +1,15 @@
+interface Props { className?: string }
+
+export function BridgeLogo({ className = '' }: Props) {
+  return <span className={`brand-logo ${className}`.trim()} aria-hidden="true">
+    <svg viewBox="0 0 36 36" role="img">
+      <rect className="bridge-logo-surface" x="1" y="1" width="34" height="34" rx="9" />
+      <g className="bridge-logo-lines" fill="none" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M7.5 23.5h21M10 23.5v-11M26 23.5v-11" />
+        <path d="M10 14c4.4 7.6 11.6 7.6 16 0" />
+        <path d="M14 18.3v5.2M18 19.7v3.8M22 18.3v5.2" />
+        <path d="M7.5 12.5h5M23.5 12.5h5M8.5 27h19" />
+      </g>
+    </svg>
+  </span>
+}

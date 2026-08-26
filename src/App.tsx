@@ -1,4 +1,4 @@
-import { Banknote, FolderKanban, HandCoins, Landmark, LockKeyhole, LogOut, MoreHorizontal, ReceiptText, ShieldCheck, ShoppingBag, Users, WalletCards } from 'lucide-react'
+import { Banknote, FolderKanban, HandCoins, Landmark, LockKeyhole, LogOut, MoreHorizontal, PanelLeftClose, PanelLeftOpen, ReceiptText, ShieldCheck, ShoppingBag, Users, WalletCards } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { AuthScreen } from './components/AuthScreen'
@@ -15,6 +15,7 @@ import { AccessModule } from './modules/access/AccessModule'
 import { CustomersModule } from './modules/customers/CustomersModule'
 import { CashAccountsModule } from './modules/cash-accounts/CashAccountsModule'
 import { ProjectsModule } from './modules/projects/ProjectsModule'
+import { BridgeLogo } from './components/BridgeLogo'
 
 type ModuleId = 'expenses' | 'projects' | 'owner-funding' | 'sales' | 'customers' | 'debts' | 'salaries' | 'balance' | 'cash-accounts' | 'access'
 
@@ -26,6 +27,7 @@ function App() {
   const [role, setRole] = useState<AppRole | null>(null)
   const [roleLoading, setRoleLoading] = useState(false)
   const [roleError, setRoleError] = useState('')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const currentUserId = session?.user.id ?? null
 
   useEffect(() => {
@@ -63,7 +65,7 @@ function App() {
   if (!session) return <AuthScreen initialError={authError} />
 
   if (roleError || !role) return <div className="auth-page"><div className="auth-card">
-    <div className="brand auth-brand"><span className="brand-mark"><span /></span><span>Ledgerly</span></div>
+    <div className="brand auth-brand"><BridgeLogo /><span className="brand-wordmark">Bridge</span></div>
     <span className="auth-icon"><LockKeyhole size={22} /></span>
     <h1>Access not assigned</h1>
     <p>{roleError || 'Your account does not have an application role yet. Ask an administrator to assign one.'}</p>
@@ -78,9 +80,10 @@ function App() {
     : isProjectLead ? ['expenses', 'cash-accounts'] : ['sales', 'customers']
   const visibleModule: ModuleId = allowedModules.includes(activeModule) ? activeModule : allowedModules[0]
 
-  return <div className="app-shell">
+  return <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
     <aside>
-      <div className="brand"><span className="brand-mark"><span /></span><span>Ledgerly</span></div>
+      <div className="brand"><BridgeLogo /><span className="brand-wordmark">Bridge</span></div>
+      <button className="sidebar-collapse" aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} aria-expanded={!sidebarCollapsed} aria-controls="primary-navigation" title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}>{sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}</button>
       <div className="mobile-controls">
         <select aria-label="Select module" value={visibleModule} onChange={(event) => setActiveModule(event.target.value as ModuleId)}>
           {(fullAccess || isProjectLead) && <option value="expenses">Expenses</option>}
@@ -96,17 +99,17 @@ function App() {
         </select>
         <button className="icon-button" aria-label="Sign out" title="Sign out" onClick={() => supabase.auth.signOut()}><LogOut size={18} /></button>
       </div>
-      <nav>
-        {(fullAccess || isProjectLead) && <button className={visibleModule === 'expenses' ? 'active' : ''} onClick={() => setActiveModule('expenses')}><ReceiptText size={18} /> Expenses</button>}
-        {fullAccess && <button className={visibleModule === 'projects' ? 'active' : ''} onClick={() => setActiveModule('projects')}><FolderKanban size={18} /> Projects</button>}
-        {fullAccess && <button className={visibleModule === 'owner-funding' ? 'active' : ''} onClick={() => setActiveModule('owner-funding')}><Landmark size={18} /> Owner funding</button>}
-        <button className={visibleModule === 'sales' ? 'active' : ''} onClick={() => setActiveModule('sales')}><ShoppingBag size={18} /> Sales</button>
-        <button className={visibleModule === 'customers' ? 'active' : ''} onClick={() => setActiveModule('customers')}><Users size={18} /> Customers</button>
-        {fullAccess && <button className={visibleModule === 'debts' ? 'active' : ''} onClick={() => setActiveModule('debts')}><HandCoins size={18} /> Debts</button>}
-        {fullAccess && <button className={visibleModule === 'salaries' ? 'active' : ''} onClick={() => setActiveModule('salaries')}><Banknote size={18} /> Salaries</button>}
-        {fullAccess && <button className={visibleModule === 'balance' ? 'active' : ''} onClick={() => setActiveModule('balance')}><WalletCards size={18} /> Balance</button>}
-        {(fullAccess || isProjectLead) && <button className={visibleModule === 'cash-accounts' ? 'active' : ''} onClick={() => setActiveModule('cash-accounts')}><WalletCards size={18} /> Cash accounts</button>}
-        {canManageAccess && <><div className="nav-label">Administration</div><button className={visibleModule === 'access' ? 'active' : ''} onClick={() => setActiveModule('access')}><ShieldCheck size={18} /> Access</button></>}
+      <nav id="primary-navigation">
+        {(fullAccess || isProjectLead) && <button title="Expenses" className={visibleModule === 'expenses' ? 'active' : ''} onClick={() => setActiveModule('expenses')}><ReceiptText size={18} /> Expenses</button>}
+        {fullAccess && <button title="Projects" className={visibleModule === 'projects' ? 'active' : ''} onClick={() => setActiveModule('projects')}><FolderKanban size={18} /> Projects</button>}
+        {fullAccess && <button title="Owner funding" className={visibleModule === 'owner-funding' ? 'active' : ''} onClick={() => setActiveModule('owner-funding')}><Landmark size={18} /> Owner funding</button>}
+        <button title="Sales" className={visibleModule === 'sales' ? 'active' : ''} onClick={() => setActiveModule('sales')}><ShoppingBag size={18} /> Sales</button>
+        <button title="Customers" className={visibleModule === 'customers' ? 'active' : ''} onClick={() => setActiveModule('customers')}><Users size={18} /> Customers</button>
+        {fullAccess && <button title="Debts" className={visibleModule === 'debts' ? 'active' : ''} onClick={() => setActiveModule('debts')}><HandCoins size={18} /> Debts</button>}
+        {fullAccess && <button title="Salaries" className={visibleModule === 'salaries' ? 'active' : ''} onClick={() => setActiveModule('salaries')}><Banknote size={18} /> Salaries</button>}
+        {fullAccess && <button title="Balance" className={visibleModule === 'balance' ? 'active' : ''} onClick={() => setActiveModule('balance')}><WalletCards size={18} /> Balance</button>}
+        {(fullAccess || isProjectLead) && <button title="Cash accounts" className={visibleModule === 'cash-accounts' ? 'active' : ''} onClick={() => setActiveModule('cash-accounts')}><WalletCards size={18} /> Cash accounts</button>}
+        {canManageAccess && <><div className="nav-label">Administration</div><button title="Access" className={visibleModule === 'access' ? 'active' : ''} onClick={() => setActiveModule('access')}><ShieldCheck size={18} /> Access</button></>}
       </nav>
       <div className="sidebar-bottom">
         <div className="profile"><div className="avatar">AM</div><div><strong>{roleLabels[role]}</strong><span>{session.user.email}</span></div><button className="icon-button sidebar-menu" title="Sign out" onClick={() => supabase.auth.signOut()}><MoreHorizontal size={18} /></button></div>

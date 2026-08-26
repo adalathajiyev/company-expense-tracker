@@ -4,7 +4,18 @@ import { sumMoney } from '../../../lib/money'
 import { formatDate } from '../../../lib/businessDate'
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'AZN' })
-const categoryClass: Record<string, string> = { Office: 'blue', Software: 'violet', Travel: 'orange', Meals: 'green', Marketing: 'pink', Utilities: 'yellow', Payroll: 'navy', Other: 'gray' }
+const categoryClass: Record<string, string> = {
+  'Other Projects': 'violet',
+  'Owner Costs': 'pink',
+  'Truck Costs': 'orange',
+  Kitchen: 'green',
+  Office: 'blue',
+  Salaries: 'navy',
+  Government: 'yellow',
+  Maintenance: 'green',
+  Factory: 'violet',
+  'Raw Materials': 'orange',
+}
 
 interface Props {
   expenses: Expense[]
