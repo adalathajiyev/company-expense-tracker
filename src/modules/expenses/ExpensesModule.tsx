@@ -1,4 +1,4 @@
-import { Banknote, CalendarDays, Download, FolderKanban, Plus, Search, SlidersHorizontal, WalletCards, X } from 'lucide-react'
+import { Banknote, CalendarDays, Download, FolderKanban, Plus, Search, SlidersHorizontal, Truck, WalletCards, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { AddExpenseModal } from './components/AddExpenseModal'
 import { DeleteExpenseModal } from './components/DeleteExpenseModal'
@@ -15,6 +15,8 @@ import { getCashAccounts } from '../cash-accounts/cashAccountService'
 import type { CashAccount } from '../cash-accounts/types'
 import { getProjectOptions } from '../projects/projectService'
 import type { ProjectOption } from '../projects/types'
+import { getFuelCardBalances, getTruckSummaries } from '../trucks/truckService'
+import type { FuelCardBalance, TruckSummary } from '../trucks/types'
 
 const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' })
 
@@ -25,6 +27,8 @@ export function ExpensesModule({ role, currentUserId }: Props) {
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [cashAccounts, setCashAccounts] = useState<CashAccount[]>([])
   const [projects, setProjects] = useState<ProjectOption[]>([])
+  const [fuelCards, setFuelCards] = useState<FuelCardBalance[]>([])
+  const [trucks, setTrucks] = useState<TruckSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -32,6 +36,7 @@ export function ExpensesModule({ role, currentUserId }: Props) {
   const [paymentMethod, setPaymentMethod] = useState('All payment methods')
   const [cashAccount, setCashAccount] = useState('All cash accounts')
   const [project, setProject] = useState('All projects')
+  const [truck, setTruck] = useState('All trucks')
   const [period, setPeriod] = useState(`month:${currentMonth}`)
   const [saving, setSaving] = useState(false)
   const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null)
@@ -39,11 +44,13 @@ export function ExpensesModule({ role, currentUserId }: Props) {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    Promise.all([getExpenses(), getCashAccounts(), getProjectOptions()])
-      .then(([rows, accounts, projectOptions]) => {
+    Promise.all([getExpenses(), getCashAccounts(), getProjectOptions(), getFuelCardBalances(), getTruckSummaries()])
+      .then(([rows, accounts, projectOptions, cardOptions, truckOptions]) => {
         setExpenses(sortByEnteredDateDesc(rows, (expense) => expense.expense_date, (expense) => expense.created_at))
         setCashAccounts(accounts)
         setProjects(projectOptions)
+        setFuelCards(cardOptions)
+        setTrucks(truckOptions)
         const mainCashAccount = accounts.find((account) => account.account_type === 'main')
         if (mainCashAccount) setCashAccount(mainCashAccount.id)
       })
@@ -63,12 +70,13 @@ export function ExpensesModule({ role, currentUserId }: Props) {
     const matchesPaymentMethod = paymentMethod === 'All payment methods' || expense.payment_method === paymentMethod
     const matchesCashAccount = cashAccount === 'All cash accounts' || expense.cash_account_id === cashAccount
     const matchesProject = project === 'All projects' || (project === 'General / No project' ? expense.project_id === null : expense.project_id === project)
+    const matchesTruck = truck === 'All trucks' || (truck === 'General / No truck' ? expense.truck_id === null : expense.truck_id === truck)
     const [periodType, periodValue] = period.split(':')
     const matchesPeriod = periodType === 'year'
       ? expense.expense_date.startsWith(periodValue)
       : expense.expense_date.startsWith(periodValue)
-    return matchesText && matchesCategory && matchesPaymentMethod && matchesCashAccount && matchesProject && matchesPeriod
-  }), [expenses, search, category, paymentMethod, cashAccount, project, period])
+    return matchesText && matchesCategory && matchesPaymentMethod && matchesCashAccount && matchesProject && matchesTruck && matchesPeriod
+  }), [expenses, search, category, paymentMethod, cashAccount, project, truck, period])
 
   async function addExpense(input: ExpenseInput) {
     setSaving(true)
@@ -100,7 +108,7 @@ export function ExpensesModule({ role, currentUserId }: Props) {
   }
 
   function exportCsv() {
-    const rows = [['Date', 'Merchant', 'Description', 'Quantity', 'Unit', 'Unit price', 'Category', 'Project', 'Payment method', 'Cash account', 'Status', 'Created by', 'Amount'], ...filtered.map((expense) => [formatDate(expense.expense_date), expense.merchant, expense.description ?? '', String(expense.quantity), expense.unit, String(expense.unit_price), expense.category, expense.project_name ?? 'General', expense.payment_method, expense.cash_account_name ?? '', expense.status, expense.created_by_email, String(expense.amount)])]
+    const rows = [['Date', 'Merchant', 'Description', 'Quantity', 'Unit', 'Unit price', 'Category', 'Project', 'Truck', 'Payment method', 'Cash account', 'Fuel card', 'Tank reading', 'Status', 'Created by', 'Amount'], ...filtered.map((expense) => [formatDate(expense.expense_date), expense.merchant, expense.description ?? '', String(expense.quantity), expense.unit, String(expense.unit_price), expense.category, expense.project_name ?? 'General', expense.truck_name ?? '', expense.payment_method, expense.cash_account_name ?? '', expense.fuel_card_name ?? '', expense.fuel_tank_reading_liters === null ? '' : String(expense.fuel_tank_reading_liters), expense.status, expense.created_by_email, String(expense.amount)])]
     const csv = rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(',')).join('\n')
     const link = document.createElement('a')
     link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
@@ -127,16 +135,21 @@ export function ExpensesModule({ role, currentUserId }: Props) {
       <div className="toolbar">
         <label className="search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search expenses..." /></label>
         <label className="filter"><SlidersHorizontal size={16} /><select aria-label="Filter expenses by category" value={category} onChange={(event) => setCategory(event.target.value)}><option>All categories</option>{categories.map((item) => <option key={item}>{item}</option>)}</select></label>
-        <label className="filter payment-filter"><Banknote size={16} /><select aria-label="Filter expenses by payment method" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}><option>All payment methods</option>{paymentMethods.map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label className="filter payment-filter"><Banknote size={16} /><select aria-label="Filter expenses by payment method" value={paymentMethod} onChange={(event) => {
+          const nextPaymentMethod = event.target.value
+          setPaymentMethod(nextPaymentMethod)
+          if (nextPaymentMethod === 'Bank transfer' || nextPaymentMethod === 'Fuel card') setCashAccount('All cash accounts')
+        }}><option>All payment methods</option>{paymentMethods.map((item) => <option key={item}>{item}</option>)}</select></label>
         <label className="filter cash-account-filter"><WalletCards size={16} /><select aria-label="Filter expenses by cash account" value={cashAccount} onChange={(event) => setCashAccount(event.target.value)}><option>All cash accounts</option>{cashAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
         <label className="filter project-filter"><FolderKanban size={16} /><select aria-label="Filter expenses by project" value={project} onChange={(event) => setProject(event.target.value)}><option>All projects</option><option>General / No project</option>{projects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+        <label className="filter truck-filter"><Truck size={16} /><select aria-label="Filter expenses by truck" value={truck} onChange={(event) => setTruck(event.target.value)}><option>All trucks</option><option>General / No truck</option>{trucks.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
         <span className="results">{filtered.length} entries</span>
       </div>
       <ExpensesTable expenses={filtered} loading={loading} canDelete={(expense) => canDeleteOwnedRecord(role, currentUserId, expense.created_by)} onDelete={setExpenseToDelete} />
       <div className="panel-footer">Showing {filtered.length} of {expenses.length} expenses <span>Updated just now</span></div>
     </section>
 
-    {modalOpen && <AddExpenseModal saving={saving} role={role} cashAccounts={cashAccounts} projects={projects} onClose={() => setModalOpen(false)} onSubmit={addExpense} />}
+    {modalOpen && <AddExpenseModal saving={saving} role={role} cashAccounts={cashAccounts} projects={projects} fuelCards={fuelCards} trucks={trucks} onClose={() => setModalOpen(false)} onSubmit={addExpense} />}
     {expenseToDelete && <DeleteExpenseModal expense={expenseToDelete} deleting={deleting} onCancel={() => setExpenseToDelete(null)} onConfirm={() => deleteExpense(expenseToDelete.id)} />}
   </>
 }

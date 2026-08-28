@@ -51,7 +51,7 @@ Access is enforced by Supabase Row Level Security as well as by the React naviga
 | Admin | Full access to every module and user-role assignments |
 | Main Accountant | Full access to all current business modules |
 | Office Accountant | Can view the Sales and Customers modules, add customers, add only bank-transfer sales and customer payments, and delete only records they created; cannot edit sales |
-| Project Lead | Can view assigned non-main cash accounts, reconcile them, and create or delete their own paid cash expenses against those accounts |
+| Project Lead | Can view assigned non-main cash accounts, reconcile them, and create or delete their own paid cash or fuel-card expenses against accessible accounts/cards |
 
 Users that existed when the role migration was applied are assigned `admin` to prevent lockout. New Authentication users have no application access until a row is added to `public.user_roles`. In the Supabase SQL editor, find the user and assign one of the supported roles:
 
@@ -74,6 +74,12 @@ Expenses, owner-funding transactions, sales, and customer payments store an immu
 The Cash Accounts module treats Main Cash, procurement floats, and project cash as separate custody accounts. Admins and Main Accountants can create accounts and transfer cash between them. Assigning a Project Lead as custodian gives that user access only to the assigned non-main account and its expenses. Account-to-account transfers are internal movements and do not change total company cash.
 
 Use reconciliation records to compare each account's calculated ledger balance with the physical cash counted by its custodian. Reconciliations document differences; they do not alter the ledger balance.
+
+## Trucks and prepaid fuel
+
+The Trucks & Fuel module keeps the petrol-provider balance, individual fuel-card balances, and truck records separate but connected. Record a bank-transfer top-up against the provider, then allocate part of that provider balance to a card assigned to a truck, project, cash account, or the main factory. Allocations and returns are internal balance movements, so they are not expenses.
+
+Record the actual fuel purchase once in Expenses using the **Fuel card** payment method. The purchase reduces the selected card's calculated balance and can store the truck's measured tank level in litres. Linking other Truck Costs expenses to a truck lets the fleet overview calculate that truck's complete cost. Project Leads can use cards assigned to cash accounts they are allowed to access.
 
 ## Customer payments
 

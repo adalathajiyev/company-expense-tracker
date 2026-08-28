@@ -18,9 +18,16 @@ export interface Expense {
   cash_account_name: string | null
   project_id: string | null
   project_name: string | null
+  fuel_card_id: string | null
+  fuel_card_name: string | null
+  fuel_card_number: string | null
+  truck_id: string | null
+  truck_name: string | null
+  truck_registration_number: string | null
+  fuel_tank_reading_liters: number | null
   created_by: string | null
   created_by_email: string
   created_at: string
 }
 
-export type ExpenseInput = Omit<Expense, 'id' | 'created_at' | 'receipt_url' | 'salary_source_id' | 'cash_account_name' | 'project_name' | 'created_by' | 'created_by_email'>
+export type ExpenseInput = Omit<Expense, 'id' | 'created_at' | 'receipt_url' | 'salary_source_id' | 'cash_account_name' | 'project_name' | 'fuel_card_name' | 'fuel_card_number' | 'truck_name' | 'truck_registration_number' | 'created_by' | 'created_by_email'>

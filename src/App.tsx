@@ -1,8 +1,9 @@
-import { Banknote, FolderKanban, HandCoins, Landmark, LockKeyhole, LogOut, MoreHorizontal, PanelLeftClose, PanelLeftOpen, ReceiptText, ShieldCheck, ShoppingBag, Users, WalletCards } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Banknote, FolderKanban, Fuel, HandCoins, Landmark, LockKeyhole, LogOut, MoreHorizontal, PanelLeftClose, PanelLeftOpen, ReceiptText, ShieldCheck, ShoppingBag, Users, WalletCards } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { AuthScreen } from './components/AuthScreen'
 import { supabase } from './lib/supabase'
+import { getSessionExpiryTime, hasSessionExpired, SESSION_EXPIRED_MESSAGE } from './lib/sessionExpiry'
 import { ExpensesModule } from './modules/expenses/ExpensesModule'
 import { OwnerFundingModule } from './modules/owner-funding/OwnerFundingModule'
 import { SalesModule } from './modules/sales/SalesModule'
@@ -16,8 +17,9 @@ import { CustomersModule } from './modules/customers/CustomersModule'
 import { CashAccountsModule } from './modules/cash-accounts/CashAccountsModule'
 import { ProjectsModule } from './modules/projects/ProjectsModule'
 import { BridgeLogo } from './components/BridgeLogo'
+import { TrucksModule } from './modules/trucks/TrucksModule'
 
-type ModuleId = 'expenses' | 'projects' | 'owner-funding' | 'sales' | 'customers' | 'debts' | 'salaries' | 'balance' | 'cash-accounts' | 'access'
+type ModuleId = 'expenses' | 'projects' | 'trucks' | 'owner-funding' | 'sales' | 'customers' | 'debts' | 'salaries' | 'balance' | 'cash-accounts' | 'access'
 
 function App() {
   const [activeModule, setActiveModule] = useState<ModuleId>('expenses')
@@ -28,19 +30,93 @@ function App() {
   const [roleLoading, setRoleLoading] = useState(false)
   const [roleError, setRoleError] = useState('')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const expirySignOutPending = useRef(false)
   const currentUserId = session?.user.id ?? null
 
+  const expireCurrentSession = useCallback(() => {
+    setSession(null)
+    setAuthLoading(false)
+    setAuthError(SESSION_EXPIRED_MESSAGE)
+
+    if (expirySignOutPending.current) return
+    expirySignOutPending.current = true
+
+    // Defer the Auth call so it never runs inside an onAuthStateChange callback.
+    window.setTimeout(() => {
+      void supabase.auth.signOut({ scope: 'local' })
+        .then(({ error }) => {
+          if (error) setAuthError(`${SESSION_EXPIRED_MESSAGE} ${error.message}`)
+        })
+        .finally(() => { expirySignOutPending.current = false })
+    }, 0)
+  }, [])
+
   useEffect(() => {
+    let cancelled = false
+
+    function applySession(nextSession: Session | null) {
+      if (cancelled) return
+      if (nextSession && hasSessionExpired(nextSession.user.last_sign_in_at)) {
+        expireCurrentSession()
+        return
+      }
+
+      if (nextSession) setAuthError('')
+      setSession(nextSession)
+      setAuthLoading(false)
+    }
+
     supabase.auth.getSession()
       .then(({ data, error }) => {
-        if (error) setAuthError(error.message)
-        setSession(data.session)
+        if (cancelled) return
+        if (error) {
+          setAuthError(error.message)
+          setSession(null)
+          setAuthLoading(false)
+          return
+        }
+        applySession(data.session)
       })
-      .catch((error: Error) => setAuthError(error.message))
-      .finally(() => setAuthLoading(false))
-    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => { setAuthError(''); setSession(nextSession); setAuthLoading(false) })
-    return () => data.subscription.unsubscribe()
-  }, [])
+      .catch((error: Error) => {
+        if (!cancelled) {
+          setAuthError(error.message)
+          setSession(null)
+          setAuthLoading(false)
+        }
+      })
+
+    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => applySession(nextSession))
+    return () => {
+      cancelled = true
+      data.subscription.unsubscribe()
+    }
+  }, [expireCurrentSession])
+
+  useEffect(() => {
+    if (!session) return
+
+    const expiresAt = getSessionExpiryTime(session.user.last_sign_in_at)
+    if (expiresAt === null || expiresAt <= Date.now()) {
+      expireCurrentSession()
+      return
+    }
+
+    const verifySessionAge = () => {
+      if (hasSessionExpired(session.user.last_sign_in_at)) expireCurrentSession()
+    }
+    const verifyVisibleSessionAge = () => {
+      if (document.visibilityState === 'visible') verifySessionAge()
+    }
+    const expiryTimer = window.setTimeout(expireCurrentSession, expiresAt - Date.now())
+
+    window.addEventListener('focus', verifySessionAge)
+    document.addEventListener('visibilitychange', verifyVisibleSessionAge)
+    return () => {
+      window.clearTimeout(expiryTimer)
+      window.removeEventListener('focus', verifySessionAge)
+      document.removeEventListener('visibilitychange', verifyVisibleSessionAge)
+    }
+  }, [expireCurrentSession, session])
 
   useEffect(() => {
     if (!currentUserId) {
@@ -76,7 +152,7 @@ function App() {
   const canManageAccess = role === 'admin'
   const isProjectLead = role === 'project_lead'
   const allowedModules: ModuleId[] = fullAccess
-    ? ['expenses', 'projects', 'owner-funding', 'sales', 'customers', 'debts', 'salaries', 'balance', 'cash-accounts', ...(canManageAccess ? ['access' as const] : [])]
+    ? ['expenses', 'projects', 'trucks', 'owner-funding', 'sales', 'customers', 'debts', 'salaries', 'balance', 'cash-accounts', ...(canManageAccess ? ['access' as const] : [])]
     : isProjectLead ? ['expenses', 'cash-accounts'] : ['sales', 'customers']
   const visibleModule: ModuleId = allowedModules.includes(activeModule) ? activeModule : allowedModules[0]
 
@@ -88,6 +164,7 @@ function App() {
         <select aria-label="Select module" value={visibleModule} onChange={(event) => setActiveModule(event.target.value as ModuleId)}>
           {(fullAccess || isProjectLead) && <option value="expenses">Expenses</option>}
           {fullAccess && <option value="projects">Projects</option>}
+          {fullAccess && <option value="trucks">Trucks & fuel</option>}
           {fullAccess && <option value="owner-funding">Owner funding</option>}
           <option value="sales">Sales</option>
           <option value="customers">Customers</option>
@@ -102,6 +179,7 @@ function App() {
       <nav id="primary-navigation">
         {(fullAccess || isProjectLead) && <button title="Expenses" className={visibleModule === 'expenses' ? 'active' : ''} onClick={() => setActiveModule('expenses')}><ReceiptText size={18} /> Expenses</button>}
         {fullAccess && <button title="Projects" className={visibleModule === 'projects' ? 'active' : ''} onClick={() => setActiveModule('projects')}><FolderKanban size={18} /> Projects</button>}
+        {fullAccess && <button title="Trucks & fuel" className={visibleModule === 'trucks' ? 'active' : ''} onClick={() => setActiveModule('trucks')}><Fuel size={18} /> Trucks & fuel</button>}
         {fullAccess && <button title="Owner funding" className={visibleModule === 'owner-funding' ? 'active' : ''} onClick={() => setActiveModule('owner-funding')}><Landmark size={18} /> Owner funding</button>}
         <button title="Sales" className={visibleModule === 'sales' ? 'active' : ''} onClick={() => setActiveModule('sales')}><ShoppingBag size={18} /> Sales</button>
         <button title="Customers" className={visibleModule === 'customers' ? 'active' : ''} onClick={() => setActiveModule('customers')}><Users size={18} /> Customers</button>
@@ -116,7 +194,7 @@ function App() {
       </div>
     </aside>
 
-    <main>{visibleModule === 'expenses' ? <ExpensesModule role={role} currentUserId={session.user.id} /> : visibleModule === 'projects' ? <ProjectsModule /> : visibleModule === 'owner-funding' ? <OwnerFundingModule role={role} currentUserId={session.user.id} /> : visibleModule === 'sales' ? <SalesModule role={role} currentUserId={session.user.id} /> : visibleModule === 'customers' ? <CustomersModule role={role} currentUserId={session.user.id} /> : visibleModule === 'debts' ? <DebtsModule /> : visibleModule === 'salaries' ? <SalariesModule /> : visibleModule === 'cash-accounts' ? <CashAccountsModule role={role} /> : visibleModule === 'access' ? <AccessModule currentUserId={session.user.id} /> : <BalanceModule />}</main>
+    <main>{visibleModule === 'expenses' ? <ExpensesModule role={role} currentUserId={session.user.id} /> : visibleModule === 'projects' ? <ProjectsModule /> : visibleModule === 'trucks' ? <TrucksModule /> : visibleModule === 'owner-funding' ? <OwnerFundingModule role={role} currentUserId={session.user.id} /> : visibleModule === 'sales' ? <SalesModule role={role} currentUserId={session.user.id} /> : visibleModule === 'customers' ? <CustomersModule role={role} currentUserId={session.user.id} /> : visibleModule === 'debts' ? <DebtsModule /> : visibleModule === 'salaries' ? <SalariesModule /> : visibleModule === 'cash-accounts' ? <CashAccountsModule role={role} /> : visibleModule === 'access' ? <AccessModule currentUserId={session.user.id} /> : <BalanceModule />}</main>
   </div>
 }
 

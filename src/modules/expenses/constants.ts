@@ -14,7 +14,7 @@ export const categories = [
   'Factory',
   'Raw Materials',
 ] as const
-export const paymentMethods = ['Cash', 'Bank transfer']
+export const paymentMethods = ['Cash', 'Bank transfer', 'Fuel card']
 export function createEmptyExpense(): ExpenseInput {
   return {
     expense_date: getBusinessDate(),
@@ -29,5 +29,8 @@ export function createEmptyExpense(): ExpenseInput {
     status: 'paid',
     cash_account_id: null,
     project_id: null,
+    fuel_card_id: null,
+    truck_id: null,
+    fuel_tank_reading_liters: null,
   }
 }
