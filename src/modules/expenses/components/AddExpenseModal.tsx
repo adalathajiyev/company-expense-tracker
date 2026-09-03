@@ -15,6 +15,7 @@ interface Props {
   saving: boolean
   role: AppRole
   cashAccounts: CashAccount[]
+  preferredCashAccountId: string | null
   projects: ProjectOption[]
   fuelCards: FuelCardBalance[]
   trucks: TruckSummary[]
@@ -22,12 +23,14 @@ interface Props {
   onSubmit: (expense: ExpenseInput) => Promise<void>
 }
 
-export function AddExpenseModal({ saving, role, cashAccounts, projects, fuelCards, trucks, onClose, onSubmit }: Props) {
+export function AddExpenseModal({ saving, role, cashAccounts, preferredCashAccountId, projects, fuelCards, trucks, onClose, onSubmit }: Props) {
   const projectLead = role === 'project_lead'
   const activeAccounts = cashAccounts.filter((account) => account.is_active)
   const activeFuelCards = fuelCards.filter((card) => card.is_active)
   const activeTrucks = trucks.filter((truck) => truck.is_active)
-  const defaultCashAccount = activeAccounts.find((account) => account.account_type === 'main') ?? activeAccounts[0]
+  const defaultCashAccount = activeAccounts.find((account) => account.id === preferredCashAccountId)
+    ?? activeAccounts.find((account) => account.account_type === 'main')
+    ?? activeAccounts[0]
   const [form, setForm] = useState<ExpenseInput>(() => ({
     ...createEmptyExpense(),
     payment_method: 'Cash',

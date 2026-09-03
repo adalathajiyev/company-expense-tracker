@@ -149,7 +149,7 @@ export function ExpensesModule({ role, currentUserId }: Props) {
       <div className="panel-footer">Showing {filtered.length} of {expenses.length} expenses <span>Updated just now</span></div>
     </section>
 
-    {modalOpen && <AddExpenseModal saving={saving} role={role} cashAccounts={cashAccounts} projects={projects} fuelCards={fuelCards} trucks={trucks} onClose={() => setModalOpen(false)} onSubmit={addExpense} />}
+    {modalOpen && <AddExpenseModal saving={saving} role={role} cashAccounts={cashAccounts} preferredCashAccountId={cashAccount === 'All cash accounts' ? null : cashAccount} projects={projects} fuelCards={fuelCards} trucks={trucks} onClose={() => setModalOpen(false)} onSubmit={addExpense} />}
     {expenseToDelete && <DeleteExpenseModal expense={expenseToDelete} deleting={deleting} onCancel={() => setExpenseToDelete(null)} onConfirm={() => deleteExpense(expenseToDelete.id)} />}
   </>
 }
