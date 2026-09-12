@@ -36,3 +36,8 @@ export function calculateSaleAmount(quantity: string, unitPrice: string): string
   if (cents <= 0n) return null
   return `${cents / 100n}.${String(cents % 100n).padStart(2, '0')}`
 }
+
+export function isSaleTotalBelowAllocated(calculatedAmount: string | null, allocatedAmount: number) {
+  if (!calculatedAmount) return false
+  return Math.round(Number(calculatedAmount) * 100) < Math.round(allocatedAmount * 100)
+}

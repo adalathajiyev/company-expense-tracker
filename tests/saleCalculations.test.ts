@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calculateSaleAmount } from '../src/modules/sales/saleCalculations'
+import { calculateSaleAmount, isSaleTotalBelowAllocated } from '../src/modules/sales/saleCalculations'
 
 describe('calculateSaleAmount', () => {
   it('supports quantities with up to six decimal places', () => {
@@ -20,5 +20,13 @@ describe('calculateSaleAmount', () => {
 
   it('rejects values whose rounded total is less than one qapik', () => {
     expect(calculateSaleAmount('0.000001', '0.000001')).toBeNull()
+  })
+
+  it('allows an edited sale total equal to allocated payments', () => {
+    expect(isSaleTotalBelowAllocated('600.00', 600)).toBe(false)
+  })
+
+  it('rejects an edited sale total below allocated payments', () => {
+    expect(isSaleTotalBelowAllocated('599.99', 600)).toBe(true)
   })
 })

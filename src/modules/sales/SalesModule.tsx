@@ -1,15 +1,15 @@
-import { Banknote, CalendarDays, Plus, Search, Tags, Trash2, X } from 'lucide-react'
+import { Banknote, CalendarDays, Pencil, Plus, Search, Tags, Trash2, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { canDeleteOwnedRecord, type AppRole } from '../access/types'
 import type { Customer } from '../customers/types'
-import { createEmptySale, paymentMethods, saleCategories, units } from './constants'
-import { createSale, getSalesWorkspace, removeSale } from './salesService'
+import { paymentMethods, saleCategories } from './constants'
+import { createSale, getSalesWorkspace, removeSale, updateSale } from './salesService'
 import type { Sale, SaleCategory, SaleInput, SalePaymentMethod, SaleStatus } from './types'
 import { formatDate, getBusinessMonth } from '../../lib/businessDate'
 import { sumMoney } from '../../lib/money'
-import { DateInput } from '../../components/DateInput'
 import { sortByEnteredDateDesc } from '../../lib/dateSort'
-import { calculateSaleAmount } from './saleCalculations'
+import { calculateSaleAmount, isSaleTotalBelowAllocated } from './saleCalculations'
+import { SaleModal } from './components/SaleModal'
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'AZN' })
 const preciseCurrency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'AZN', minimumFractionDigits: 2, maximumFractionDigits: 6 })
@@ -31,8 +31,7 @@ export function SalesModule({ role, currentUserId }: Props) {
   const [categoryFilter, setCategoryFilter] = useState<'All categories' | SaleCategory>('All categories')
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<'All payment methods' | SalePaymentMethod>('All payment methods')
   const [period, setPeriod] = useState(`month:${currentMonth}`)
-  const [saleModalOpen, setSaleModalOpen] = useState(false)
-  const [form, setForm] = useState<SaleInput>(createEmptySale)
+  const [saleModal, setSaleModal] = useState<'new' | Sale | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -64,16 +63,16 @@ export function SalesModule({ role, currentUserId }: Props) {
 
   const total = sumMoney(filtered.map((sale) => Number(sale.amount)))
   const paidTotal = sumMoney(filtered.map((sale) => Number(sale.paid_amount)))
-  const calculatedAmount = calculateSaleAmount(form.quantity, form.unit_price)
 
-  async function addSale(event: React.FormEvent) {
-    event.preventDefault()
+  async function saveSale(input: SaleInput) {
+    const editingSale = saleModal === 'new' ? null : saleModal
+    const calculatedAmount = calculateSaleAmount(input.quantity, input.unit_price)
     setSaving(true)
     setError('')
 
-    if (!form.customer_id) {
+    if (!input.customer_id || !input.product.trim()) {
       setSaving(false)
-      setError('Select a customer before adding the sale.')
+      setError('Customer and product are required.')
       return
     }
     if (!calculatedAmount) {
@@ -81,20 +80,25 @@ export function SalesModule({ role, currentUserId }: Props) {
       setError('Quantity and unit price must be greater than zero, use no more than 6 decimal places, and produce a total of at least ₼0.01.')
       return
     }
-    if (isOfficeAccountant && form.payment_method !== 'Bank transfer') {
+    if (editingSale && isSaleTotalBelowAllocated(calculatedAmount, Number(editingSale.paid_amount))) {
       setSaving(false)
-      setError('Office accountants can only add bank transfer sales.')
+      setError(`The sale total cannot be less than the ${currency.format(Number(editingSale.paid_amount))} already allocated.`)
+      return
+    }
+    if (isOfficeAccountant && input.payment_method !== 'Bank transfer') {
+      setSaving(false)
+      setError('Office accountants can only use bank transfer sales.')
       return
     }
 
     try {
-      await createSale(form)
-      setSaleModalOpen(false)
-      setForm({ ...createEmptySale(), customer_id: customers[0]?.id ?? '', payment_method: allowedPaymentMethods[0] ?? 'Cash' })
+      if (editingSale) await updateSale(editingSale.id, input)
+      else await createSale(input)
+      setSaleModal(null)
       try { await loadWorkspace() }
-      catch { setError('Sale was saved, but the latest sales list could not be refreshed. Reload the page to see it.') }
+      catch { setError('The sale was saved, but the latest sales list could not be refreshed. Reload the page to see it.') }
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Could not add the sale.')
+      setError(saveError instanceof Error ? saveError.message : `Could not ${editingSale ? 'update' : 'add'} the sale.`)
     } finally {
       setSaving(false)
     }
@@ -120,9 +124,7 @@ export function SalesModule({ role, currentUserId }: Props) {
       setError('Add a customer from the Customers tab before recording the first sale.')
       return
     }
-    const selectedCustomerId = customers.some((customer) => customer.id === form.customer_id) ? form.customer_id : customers[0].id
-    setForm({ ...createEmptySale(), customer_id: selectedCustomerId, payment_method: allowedPaymentMethods[0] ?? 'Cash' })
-    setSaleModalOpen(true)
+    setSaleModal('new')
   }
 
   return <>
@@ -135,6 +137,7 @@ export function SalesModule({ role, currentUserId }: Props) {
       <div className="table-wrap sales-table"><table><thead><tr><th>Date</th><th>Customer</th><th>Product</th><th>Description</th><th>Category</th><th>Quantity</th><th>Method</th><th>Status</th><th>Created by</th><th className="amount">Allocated</th><th className="amount">Total</th><th /></tr></thead><tbody>{loading ? <tr><td colSpan={12} className="empty">Loading sales…</td></tr> : filtered.length === 0 ? <tr><td colSpan={12} className="empty">No sales for this period.</td></tr> : filtered.map((sale) => {
         const ownedDelete = canDeleteOwnedRecord(role, currentUserId, sale.created_by)
         const canDelete = ownedDelete && Number(sale.paid_amount) === 0
+        const canEdit = role === 'admin' || role === 'main_accountant'
         return <tr key={sale.id}>
           <td className="date-cell">{formatDate(sale.sale_date)}</td>
           <td><strong className="customer-name">{sale.customer_name}</strong></td>
@@ -147,20 +150,12 @@ export function SalesModule({ role, currentUserId }: Props) {
           <td className="creator-cell">{sale.created_by_email}</td>
           <td className="amount">{currency.format(Number(sale.paid_amount))}</td>
           <td className="amount"><strong>{currency.format(Number(sale.amount))}</strong></td>
-          <td><button className="icon-button delete" disabled={!canDelete} title={!ownedDelete ? 'Only the creator or an Admin can delete this sale' : Number(sale.paid_amount) > 0 ? 'Sales with allocated payments cannot be deleted' : 'Delete sale'} onClick={() => deleteSale(sale)}><Trash2 size={15} /></button></td>
+          <td><div className="row-actions"><button className="icon-button" disabled={!canEdit} title={canEdit ? 'Edit sale' : 'Only an Admin or Main Accountant can edit sales'} onClick={() => setSaleModal(sale)}><Pencil size={15} /></button><button className="icon-button delete" disabled={!canDelete} title={!ownedDelete ? 'Only the creator or an Admin can delete this sale' : Number(sale.paid_amount) > 0 ? 'Sales with allocated payments cannot be deleted' : 'Delete sale'} onClick={() => deleteSale(sale)}><Trash2 size={15} /></button></div></td>
         </tr>
       })}</tbody>{!loading && <tfoot><tr><td colSpan={9} className="total-label">Totals</td><td className="amount total-amount">{currency.format(paidTotal)}</td><td className="amount total-amount">{currency.format(total)}</td><td /></tr></tfoot>}</table></div>
       <div className="panel-footer">Showing {filtered.length} of {sales.length} sales <span>Payment status updates from Customers</span></div>
     </section>
 
-    {saleModalOpen && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setSaleModalOpen(false)}><div className="modal"><div className="modal-head"><div><span className="modal-icon"><Plus size={20} /></span><div><h3>Add a sale</h3><p>Record a product or service sold</p></div></div><button type="button" className="icon-button" onClick={() => setSaleModalOpen(false)}><X size={19} /></button></div><form onSubmit={addSale}><div className="form-grid">
-      <label className="wide">Customer<span>*</span><select autoFocus required value={form.customer_id} onChange={(event) => setForm({ ...form, customer_id: event.target.value })}><option value="" disabled>Select customer</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
-      <label className="wide">Product sold<span>*</span><input required value={form.product} onChange={(event) => setForm({ ...form, product: event.target.value })} placeholder="Product or service name" /></label>
-      <label className="wide">Description<textarea value={form.description ?? ''} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Optional details about this sale" /></label>
-      <label>Category<span>*</span><select required value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value as SaleCategory })}>{saleCategories.map((category) => <option key={category}>{category}</option>)}</select></label><label>Date<span>*</span><DateInput required value={form.sale_date} onChange={(value) => setForm({ ...form, sale_date: value })} /></label>
-      <label>Unit price<span>*</span><div className="money-input"><span>₼</span><input type="number" min="0.000001" step="0.000001" required value={form.unit_price} onChange={(event) => setForm({ ...form, unit_price: event.target.value })} /></div></label><label>Quantity<span>*</span><input type="number" min="0.000001" step="0.000001" required value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} /></label>
-      <label>Unit<select value={form.unit} onChange={(event) => setForm({ ...form, unit: event.target.value })}>{units.map((unit) => <option key={unit}>{unit}</option>)}</select></label><label>Expected payment method<select value={form.payment_method} onChange={(event) => setForm({ ...form, payment_method: event.target.value as SalePaymentMethod })}>{allowedPaymentMethods.map((method) => <option key={method}>{method}</option>)}</select></label>
-      <div className="wide calculated-total"><span>Calculated total</span><strong>{currency.format(Number(calculatedAmount ?? 0))}</strong><small>{form.quantity || 0} × {form.unit_price ? preciseCurrency.format(Number(form.unit_price)) : currency.format(0)}</small></div>
-      </div><div className="modal-actions"><button type="button" className="button secondary" onClick={() => setSaleModalOpen(false)}>Cancel</button><button className="button primary" disabled={saving}>{saving ? 'Saving…' : 'Add sale'}</button></div></form></div></div>}
+    {saleModal && <SaleModal sale={saleModal === 'new' ? null : saleModal} defaultCustomerId={customers[0]?.id ?? ''} customers={customers} allowedPaymentMethods={allowedPaymentMethods} saving={saving} onClose={() => setSaleModal(null)} onSubmit={saveSale} />}
   </>
 }

@@ -68,6 +68,27 @@ export async function createSale(input: SaleInput) {
   if (error) throw error
 }
 
+export async function updateSale(id: string, input: SaleInput) {
+  const { data, error } = await supabase
+    .from('sales')
+    .update({
+      sale_date: input.sale_date,
+      product: input.product.trim(),
+      description: input.description?.trim() || null,
+      category: input.category,
+      quantity: input.quantity,
+      unit: input.unit,
+      unit_price: input.unit_price,
+      payment_method: input.payment_method,
+    })
+    .eq('id', id)
+    .select('id')
+    .maybeSingle()
+
+  if (error) throw error
+  if (!data) throw new Error('Only an Admin or Main Accountant can edit this sale.')
+}
+
 export async function removeSale(id: string) {
   const { data, error } = await supabase.from('sales').delete().eq('id', id).select('id').maybeSingle()
   if (error) throw error
