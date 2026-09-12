@@ -6,6 +6,7 @@ import type { Sale } from '../../sales/types'
 import { formatDate, getBusinessDate } from '../../../lib/businessDate'
 import { roundMoney, sumMoney } from '../../../lib/money'
 import { DateInput } from '../../../components/DateInput'
+import { buildAutomaticAllocations, getRemainingSaleAmount } from '../paymentAllocationCalculations'
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'AZN' })
 
@@ -16,22 +17,6 @@ interface Props {
   allowedPaymentMethods: readonly CustomerPaymentMethod[]
   onClose: () => void
   onSubmit: (payment: CustomerPaymentInput) => Promise<void>
-}
-
-function buildAutomaticAllocations(sales: Sale[], amount: number) {
-  let available = Math.max(amount, 0)
-  const allocations: Record<string, string> = {}
-  const ordered = [...sales].sort((a, b) => a.sale_date.localeCompare(b.sale_date) || a.created_at.localeCompare(b.created_at))
-
-  ordered.forEach((sale) => {
-    if (available <= 0) return
-    const remaining = Math.max(Number(sale.amount) - Number(sale.paid_amount), 0)
-    const allocation = Math.min(remaining, available)
-    if (allocation > 0) allocations[sale.id] = allocation.toFixed(2)
-    available = roundMoney(available - allocation)
-  })
-
-  return allocations
 }
 
 export function AddPaymentModal({ customer, sales, saving, allowedPaymentMethods, onClose, onSubmit }: Props) {
@@ -49,7 +34,7 @@ export function AddPaymentModal({ customer, sales, saving, allowedPaymentMethods
   const allocatedTotal = sumMoney(Object.values(allocations).map((value) => Number(value) || 0))
   const unallocated = roundMoney(numericAmount - allocatedTotal)
   const saleLimitExceeded = openSales.some((sale) => {
-    const remaining = Math.max(Number(sale.amount) - Number(sale.paid_amount), 0)
+    const remaining = getRemainingSaleAmount(sale)
     return (Number(allocations[sale.id]) || 0) > remaining + 0.001
   })
   const invalidAllocation = allocatedTotal > numericAmount + 0.001 || saleLimitExceeded
@@ -109,7 +94,7 @@ export function AddPaymentModal({ customer, sales, saving, allowedPaymentMethods
 
       <div className="allocation-list">
         {openSales.length === 0 ? <div className="allocation-empty">This customer has no open sales. The full payment will remain as unallocated credit.</div> : openSales.map((sale) => {
-          const remaining = Math.max(Number(sale.amount) - Number(sale.paid_amount), 0)
+          const remaining = getRemainingSaleAmount(sale)
           return <label className="allocation-row" key={sale.id}>
             <span><strong>{sale.product}</strong><small>{formatDate(sale.sale_date)} · {currency.format(remaining)} remaining</small></span>
             <div className="money-input"><span>₼</span><input aria-label={`Allocation for ${sale.product}`} type="number" min="0" max={remaining} step="0.01" value={allocations[sale.id] ?? ''} onChange={(event) => changeAllocation(sale.id, event.target.value)} /></div>

@@ -1,17 +1,20 @@
-import { Banknote, History, Search, UserPlus, Users, X } from 'lucide-react'
+import { Banknote, History, ReceiptText, Search, UserPlus, Users, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { canDeleteOwnedRecord, type AppRole } from '../access/types'
 import { getSalesWorkspace } from '../sales/salesService'
 import type { Sale } from '../sales/types'
 import { AddCustomerModal } from './components/AddCustomerModal'
 import { AddPaymentModal } from './components/AddPaymentModal'
+import { AllocateCustomerPaymentModal } from './components/AllocateCustomerPaymentModal'
+import { CustomerPaymentsReport } from './components/CustomerPaymentsReport'
 import { PaymentHistoryModal } from './components/PaymentHistoryModal'
 import { customerPaymentMethods } from './constants'
-import { createCustomer, createCustomerPayment, removeCustomerPayment } from './customerService'
+import { allocateExistingCustomerPayment, createCustomer, createCustomerPayment, removeCustomerPayment } from './customerService'
 import type {
   Customer,
   CustomerInput,
   CustomerPayment,
+  CustomerPaymentAllocationInput,
   CustomerPaymentInput,
   CustomerPaymentMethod,
   CustomerSummary,
@@ -19,6 +22,7 @@ import type {
 import { isFutureBusinessDate } from '../../lib/businessDate'
 import { sumMoney } from '../../lib/money'
 import { sortByEnteredDateDesc } from '../../lib/dateSort'
+import { getRemainingSaleAmount } from './paymentAllocationCalculations'
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'AZN' })
 const bankTransferOnly = ['Bank transfer'] as const satisfies readonly CustomerPaymentMethod[]
@@ -35,8 +39,11 @@ export function CustomersModule({ role, currentUserId }: Props) {
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
   const [customerModalOpen, setCustomerModalOpen] = useState(false)
+  const [activeView, setActiveView] = useState<'accounts' | 'payments'>('accounts')
   const [paymentCustomer, setPaymentCustomer] = useState<Customer | null>(null)
   const [historyCustomer, setHistoryCustomer] = useState<Customer | null>(null)
+  const [allocationPayment, setAllocationPayment] = useState<CustomerPayment | null>(null)
+  const [returnToHistoryAfterAllocation, setReturnToHistoryAfterAllocation] = useState(false)
   const [error, setError] = useState('')
 
   const loadWorkspace = useCallback(async () => {
@@ -160,6 +167,61 @@ export function CustomersModule({ role, currentUserId }: Props) {
     }
   }
 
+  function canAllocatePayment(payment: CustomerPayment) {
+    if (role === 'admin' || role === 'main_accountant') return true
+    return role === 'office_accountant'
+      && payment.created_by === currentUserId
+      && payment.payment_method === 'Bank transfer'
+  }
+
+  async function allocatePayment(paymentId: string, allocations: CustomerPaymentAllocationInput[]) {
+    const payment = payments.find((candidate) => candidate.id === paymentId)
+    if (!payment || !canAllocatePayment(payment)) {
+      setError('You do not have permission to allocate this customer payment.')
+      return
+    }
+
+    const customerSales = sales.filter((sale) => sale.customer_id === payment.customer_id)
+    const saleById = new Map(customerSales.map((sale) => [sale.id, sale]))
+    const alreadyAllocatedSaleIds = new Set(payment.allocations.map((allocation) => allocation.sale_id))
+    const allocatedTotal = sumMoney(allocations.map((allocation) => Number(allocation.amount)))
+
+    if (allocations.length === 0 || allocatedTotal <= 0 || allocatedTotal > Number(payment.unallocated_amount) + 0.001) {
+      setError('Allocations must be greater than zero and cannot exceed the available credit.')
+      return
+    }
+    if (new Set(allocations.map((allocation) => allocation.sale_id)).size !== allocations.length || allocations.some((allocation) => {
+      const sale = saleById.get(allocation.sale_id)
+      return !sale
+        || alreadyAllocatedSaleIds.has(allocation.sale_id)
+        || allocation.amount <= 0
+        || allocation.amount > getRemainingSaleAmount(sale) + 0.001
+    })) {
+      setError('One or more allocations are invalid or exceed the remaining sale balance.')
+      return
+    }
+
+    const customer = customers.find((candidate) => candidate.id === payment.customer_id) ?? null
+    const shouldReturnToHistory = returnToHistoryAfterAllocation
+    setSaving(true)
+    setError('')
+    try {
+      await allocateExistingCustomerPayment(paymentId, allocations)
+      setAllocationPayment(null)
+      try {
+        await refreshWorkspace()
+        if (shouldReturnToHistory) setHistoryCustomer(customer)
+      } catch {
+        setError('The credit was allocated, but the latest balances could not be refreshed. Reload the page to see it.')
+      }
+      setReturnToHistoryAfterAllocation(false)
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Could not allocate the customer payment.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function deletePayment(payment: CustomerPayment) {
     if (!canDeleteOwnedRecord(role, currentUserId, payment.created_by)) {
       setError('Only the creator or an Admin can delete this payment.')
@@ -177,11 +239,15 @@ export function CustomersModule({ role, currentUserId }: Props) {
     }
   }
 
+  const allocationCustomer = allocationPayment
+    ? customers.find((customer) => customer.id === allocationPayment.customer_id) ?? null
+    : null
+
   return <>
-    <header><div><p className="eyebrow">CUSTOMER RECEIVABLES</p><h1>Customers</h1><p>Manage customer accounts, outstanding balances, and incoming payments.</p></div><button className="button primary" onClick={() => setCustomerModalOpen(true)}><UserPlus size={16} /> Add customer</button></header>
+    <header><div><p className="eyebrow">CUSTOMER RECEIVABLES</p><h1>Customers</h1><p>Manage customer accounts, outstanding balances, and incoming payments.</p></div>{activeView === 'accounts' && <div className="header-actions"><button className="button secondary customer-payment-report-button" onClick={() => setActiveView('payments')}><ReceiptText size={16} /> Payment report</button><button className="button primary" onClick={() => setCustomerModalOpen(true)}><UserPlus size={16} /> Add customer</button></div>}</header>
     {error && <div className="error-banner">{error}<button onClick={() => setError('')}><X size={15} /></button></div>}
 
-    <section className="panel">
+    {activeView === 'accounts' ? <section className="panel">
       <div className="panel-heading"><div><h3>Customer accounts</h3><p>Lifetime sales, receipts, and unapplied customer payments</p></div><span className="panel-heading-icon"><Users size={17} /></span></div>
       <div className="toolbar"><label className="search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search names, phones, or details..." /></label><span className="results">{filtered.length} customers</span></div>
       <div className="table-wrap customer-accounts-table"><table><thead><tr><th>Customer</th><th>Phone</th><th>Details</th><th className="amount">Sales</th><th className="amount">Received</th><th className="amount">Outstanding</th><th className="amount">Unallocated</th><th>Payments</th></tr></thead><tbody>{loading ? <tr><td colSpan={8} className="empty">Loading customer accounts…</td></tr> : filtered.length === 0 ? <tr><td colSpan={8} className="empty">{customers.length === 0 ? 'No customers have been added.' : 'No customers match your search.'}</td></tr> : filtered.map((summary) => <tr key={summary.customer.id}>
@@ -195,10 +261,11 @@ export function CustomersModule({ role, currentUserId }: Props) {
         <td><div className="row-actions"><button className="icon-button payment" title="Record customer payment" onClick={() => setPaymentCustomer(summary.customer)}><Banknote size={15} /></button><button className="icon-button" title="Customer payment history" onClick={() => setHistoryCustomer(summary.customer)}><History size={15} /></button></div></td>
       </tr>)}</tbody></table></div>
       <div className="panel-footer">Showing {filtered.length} of {customers.length} customers <span>Payments may be allocated across multiple sales</span></div>
-    </section>
+    </section> : <CustomerPaymentsReport customers={customers} payments={payments} sales={sales} loading={loading} role={role} currentUserId={currentUserId} canAllocate={canAllocatePayment} onBack={() => setActiveView('accounts')} onViewHistory={setHistoryCustomer} onAllocate={(payment) => { setReturnToHistoryAfterAllocation(false); setAllocationPayment(payment) }} onDelete={deletePayment} />}
 
     {customerModalOpen && <AddCustomerModal saving={saving} onClose={() => setCustomerModalOpen(false)} onSubmit={addCustomer} />}
     {paymentCustomer && <AddPaymentModal customer={paymentCustomer} sales={sales.filter((sale) => sale.customer_id === paymentCustomer.id)} saving={saving} allowedPaymentMethods={allowedPaymentMethods} onClose={() => setPaymentCustomer(null)} onSubmit={addPayment} />}
-    {historyCustomer && <PaymentHistoryModal customer={historyCustomer} payments={payments.filter((payment) => payment.customer_id === historyCustomer.id)} sales={sales.filter((sale) => sale.customer_id === historyCustomer.id)} currentUserId={currentUserId} role={role} onClose={() => setHistoryCustomer(null)} onDelete={deletePayment} />}
+    {historyCustomer && <PaymentHistoryModal customer={historyCustomer} payments={payments.filter((payment) => payment.customer_id === historyCustomer.id)} sales={sales.filter((sale) => sale.customer_id === historyCustomer.id)} currentUserId={currentUserId} role={role} canAllocate={canAllocatePayment} onAllocate={(payment) => { setHistoryCustomer(null); setReturnToHistoryAfterAllocation(true); setAllocationPayment(payment) }} onClose={() => setHistoryCustomer(null)} onDelete={deletePayment} />}
+    {allocationPayment && allocationCustomer && <AllocateCustomerPaymentModal customer={allocationCustomer} payment={allocationPayment} sales={sales.filter((sale) => sale.customer_id === allocationPayment.customer_id)} saving={saving} onClose={() => { setReturnToHistoryAfterAllocation(false); setAllocationPayment(null) }} onSubmit={allocatePayment} />}
   </>
 }

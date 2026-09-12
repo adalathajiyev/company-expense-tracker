@@ -1,4 +1,4 @@
-import { Banknote, FolderKanban, Fuel, HandCoins, Landmark, LockKeyhole, LogOut, MoreHorizontal, PanelLeftClose, PanelLeftOpen, ReceiptText, ShieldCheck, ShoppingBag, Users, WalletCards } from 'lucide-react'
+import { Banknote, FolderKanban, Fuel, HandCoins, Landmark, LockKeyhole, LogOut, MoreHorizontal, PackageOpen, PanelLeftClose, PanelLeftOpen, ReceiptText, ShieldCheck, ShoppingBag, Users, WalletCards } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { AuthScreen } from './components/AuthScreen'
@@ -18,8 +18,9 @@ import { CashAccountsModule } from './modules/cash-accounts/CashAccountsModule'
 import { ProjectsModule } from './modules/projects/ProjectsModule'
 import { BridgeLogo } from './components/BridgeLogo'
 import { TrucksModule } from './modules/trucks/TrucksModule'
+import { RawMaterialsModule } from './modules/raw-materials/RawMaterialsModule'
 
-type ModuleId = 'expenses' | 'projects' | 'trucks' | 'owner-funding' | 'sales' | 'customers' | 'debts' | 'salaries' | 'balance' | 'cash-accounts' | 'access'
+type ModuleId = 'expenses' | 'projects' | 'raw-materials' | 'trucks' | 'owner-funding' | 'sales' | 'customers' | 'debts' | 'salaries' | 'balance' | 'cash-accounts' | 'access'
 
 function App() {
   const [activeModule, setActiveModule] = useState<ModuleId>('expenses')
@@ -152,7 +153,7 @@ function App() {
   const canManageAccess = role === 'admin'
   const isProjectLead = role === 'project_lead'
   const allowedModules: ModuleId[] = fullAccess
-    ? ['expenses', 'projects', 'trucks', 'owner-funding', 'sales', 'customers', 'debts', 'salaries', 'balance', 'cash-accounts', ...(canManageAccess ? ['access' as const] : [])]
+    ? ['expenses', 'projects', 'raw-materials', 'trucks', 'owner-funding', 'sales', 'customers', 'debts', 'salaries', 'balance', 'cash-accounts', ...(canManageAccess ? ['access' as const] : [])]
     : isProjectLead ? ['expenses', 'cash-accounts'] : ['sales', 'customers']
   const visibleModule: ModuleId = allowedModules.includes(activeModule) ? activeModule : allowedModules[0]
 
@@ -164,6 +165,7 @@ function App() {
         <select aria-label="Select module" value={visibleModule} onChange={(event) => setActiveModule(event.target.value as ModuleId)}>
           {(fullAccess || isProjectLead) && <option value="expenses">Expenses</option>}
           {fullAccess && <option value="projects">Projects</option>}
+          {fullAccess && <option value="raw-materials">Raw materials</option>}
           {fullAccess && <option value="trucks">Trucks & fuel</option>}
           {fullAccess && <option value="owner-funding">Owner funding</option>}
           <option value="sales">Sales</option>
@@ -179,6 +181,7 @@ function App() {
       <nav id="primary-navigation">
         {(fullAccess || isProjectLead) && <button title="Expenses" className={visibleModule === 'expenses' ? 'active' : ''} onClick={() => setActiveModule('expenses')}><ReceiptText size={18} /> Expenses</button>}
         {fullAccess && <button title="Projects" className={visibleModule === 'projects' ? 'active' : ''} onClick={() => setActiveModule('projects')}><FolderKanban size={18} /> Projects</button>}
+        {fullAccess && <button title="Raw materials" className={visibleModule === 'raw-materials' ? 'active' : ''} onClick={() => setActiveModule('raw-materials')}><PackageOpen size={18} /> Raw materials</button>}
         {fullAccess && <button title="Trucks & fuel" className={visibleModule === 'trucks' ? 'active' : ''} onClick={() => setActiveModule('trucks')}><Fuel size={18} /> Trucks & fuel</button>}
         {fullAccess && <button title="Owner funding" className={visibleModule === 'owner-funding' ? 'active' : ''} onClick={() => setActiveModule('owner-funding')}><Landmark size={18} /> Owner funding</button>}
         <button title="Sales" className={visibleModule === 'sales' ? 'active' : ''} onClick={() => setActiveModule('sales')}><ShoppingBag size={18} /> Sales</button>
@@ -194,7 +197,7 @@ function App() {
       </div>
     </aside>
 
-    <main>{visibleModule === 'expenses' ? <ExpensesModule role={role} currentUserId={session.user.id} /> : visibleModule === 'projects' ? <ProjectsModule /> : visibleModule === 'trucks' ? <TrucksModule /> : visibleModule === 'owner-funding' ? <OwnerFundingModule role={role} currentUserId={session.user.id} /> : visibleModule === 'sales' ? <SalesModule role={role} currentUserId={session.user.id} /> : visibleModule === 'customers' ? <CustomersModule role={role} currentUserId={session.user.id} /> : visibleModule === 'debts' ? <DebtsModule /> : visibleModule === 'salaries' ? <SalariesModule /> : visibleModule === 'cash-accounts' ? <CashAccountsModule role={role} /> : visibleModule === 'access' ? <AccessModule currentUserId={session.user.id} /> : <BalanceModule />}</main>
+    <main>{visibleModule === 'expenses' ? <ExpensesModule role={role} currentUserId={session.user.id} /> : visibleModule === 'projects' ? <ProjectsModule /> : visibleModule === 'raw-materials' ? <RawMaterialsModule role={role} currentUserId={session.user.id} /> : visibleModule === 'trucks' ? <TrucksModule /> : visibleModule === 'owner-funding' ? <OwnerFundingModule role={role} currentUserId={session.user.id} /> : visibleModule === 'sales' ? <SalesModule role={role} currentUserId={session.user.id} /> : visibleModule === 'customers' ? <CustomersModule role={role} currentUserId={session.user.id} /> : visibleModule === 'debts' ? <DebtsModule /> : visibleModule === 'salaries' ? <SalariesModule /> : visibleModule === 'cash-accounts' ? <CashAccountsModule role={role} /> : visibleModule === 'access' ? <AccessModule currentUserId={session.user.id} /> : <BalanceModule />}</main>
   </div>
 }
 

@@ -3,6 +3,7 @@ import type {
   Customer,
   CustomerInput,
   CustomerPayment,
+  CustomerPaymentAllocationInput,
   CustomerPaymentInput,
   PaymentAllocation,
 } from './types'
@@ -92,6 +93,22 @@ export async function createCustomerPayment(input: CustomerPaymentInput) {
 
   if (error) throw error
   return data as string
+}
+
+export async function allocateExistingCustomerPayment(paymentId: string, allocations: CustomerPaymentAllocationInput[]) {
+  if (allocations.length === 0) throw new Error('Allocate at least part of the available credit.')
+
+  const orderedAllocations = [...allocations].sort((a, b) => a.sale_id.localeCompare(b.sale_id))
+
+  const { error } = await supabase
+    .from('payment_allocations')
+    .insert(orderedAllocations.map((allocation) => ({
+      payment_id: paymentId,
+      sale_id: allocation.sale_id,
+      amount: allocation.amount,
+    })))
+
+  if (error) throw error
 }
 
 export async function removeCustomerPayment(id: string) {
