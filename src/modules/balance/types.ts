@@ -10,6 +10,21 @@ export interface CashBalance {
 }
 
 export type BalanceAdjustmentDirection = 'receivable' | 'payable'
+export type BalanceAdjustmentPaymentMethod = 'Cash' | 'Bank transfer'
+export type BalanceAdjustmentStatus = 'outstanding' | 'partially_paid' | 'settled'
+
+export interface BalanceAdjustmentSettlement {
+  id: string
+  balance_adjustment_id: string
+  payment_date: string
+  payment_method: BalanceAdjustmentPaymentMethod
+  cash_account_id: string | null
+  amount: number
+  note: string | null
+  created_by: string | null
+  created_by_email: string
+  created_at: string
+}
 
 export interface BalanceAdjustment {
   id: string
@@ -18,6 +33,10 @@ export interface BalanceAdjustment {
   amount: number
   direction: BalanceAdjustmentDirection
   created_at: string
+  settlements: BalanceAdjustmentSettlement[]
+  settled_amount: number
+  remaining_amount: number
+  status: BalanceAdjustmentStatus
 }
 
 export interface BalanceAdjustmentInput {
@@ -25,4 +44,13 @@ export interface BalanceAdjustmentInput {
   description: string | null
   amount: number
   direction: BalanceAdjustmentDirection
+}
+
+export interface BalanceAdjustmentSettlementInput {
+  balance_adjustment_id: string
+  payment_date: string
+  payment_method: BalanceAdjustmentPaymentMethod
+  cash_account_id: string | null
+  amount: number
+  note: string | null
 }

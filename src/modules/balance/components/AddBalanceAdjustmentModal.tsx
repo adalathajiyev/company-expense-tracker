@@ -30,7 +30,7 @@ export function AddBalanceAdjustmentModal({ saving, onClose, onSubmit }: Props) 
   return <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !saving && onClose()}>
     <div className="modal confirm-modal" role="dialog" aria-modal="true" aria-labelledby="add-balance-adjustment-title">
       <div className="modal-head">
-        <div><span className="modal-icon"><Plus size={20} /></span><div><h3 id="add-balance-adjustment-title">Add other payment</h3><p>Record money owed to or by the company</p></div></div>
+        <div><span className="modal-icon"><Plus size={20} /></span><div><h3 id="add-balance-adjustment-title">Add receivable or payable</h3><p>Record money owed to or by the company</p></div></div>
         <button type="button" className="icon-button" disabled={saving} onClick={onClose} aria-label="Close"><X size={19} /></button>
       </div>
       <form onSubmit={submit}>
@@ -44,10 +44,10 @@ export function AddBalanceAdjustmentModal({ saving, onClose, onSubmit }: Props) 
           <label className="wide">Description<textarea value={form.description ?? ''} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="What is this payment for?" /></label>
           <div className={`wide balance-direction-preview ${form.direction}`}>
             {form.direction === 'receivable' ? <ArrowDownLeft size={17} /> : <ArrowUpRight size={17} />}
-            <span>{form.direction === 'receivable' ? 'This amount will increase the displayed balance.' : 'This amount will decrease the displayed balance.'}</span>
+            <span>This records an obligation only. Physical cash changes when a cash settlement is recorded.</span>
           </div>
         </div>
-        <div className="modal-actions"><button type="button" className="button secondary" disabled={saving} onClick={onClose}>Cancel</button><button className="button primary" disabled={saving}>{saving ? 'Saving…' : 'Add payment'}</button></div>
+        <div className="modal-actions"><button type="button" className="button secondary" disabled={saving} onClick={onClose}>Cancel</button><button className="button primary" disabled={saving}>{saving ? 'Saving…' : 'Add obligation'}</button></div>
       </form>
     </div>
   </div>
