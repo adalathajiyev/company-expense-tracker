@@ -1,21 +1,24 @@
-import { ArrowDownLeft, ArrowRightLeft, ArrowUpRight, ClipboardCheck, Plus, RefreshCw, WalletCards, X } from 'lucide-react'
+import { ArrowDownLeft, ArrowRightLeft, ArrowUpRight, CalendarDays, ClipboardCheck, Plus, RefreshCw, Search, SlidersHorizontal, WalletCards, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { formatDate } from '../../lib/businessDate'
+import { formatDate, getBusinessMonth } from '../../lib/businessDate'
 import type { AppRole } from '../access/types'
 import { hasFullAccess } from '../access/types'
 import { AddCashAccountModal } from './components/AddCashAccountModal'
 import { AddCashReconciliationModal } from './components/AddCashReconciliationModal'
 import { AddCashTransferModal } from './components/AddCashTransferModal'
 import { createCashAccount, createCashReconciliation, createCashTransfer, getCashAccounts, getCashAccountUsers, getCashLedger, getCashReconciliations } from './cashAccountService'
+import { calculateCashLedgerPeriodSummary, filterCashLedgerEntries, type LedgerDirectionFilter, type LedgerKindFilter } from './cashLedgerCalculations'
 import type { CashAccount, CashAccountInput, CashAccountUser, CashLedgerEntry, CashReconciliation, CashReconciliationInput, CashTransferInput } from './types'
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'AZN' })
+const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' })
 const accountTypeLabels = { main: 'Main cash', project: 'Project cash', employee_float: 'Employee float' } as const
 
 interface Props { role: AppRole }
 
 export function CashAccountsModule({ role }: Props) {
   const privileged = hasFullAccess(role)
+  const currentMonth = getBusinessMonth()
   const [accounts, setAccounts] = useState<CashAccount[]>([])
   const [entries, setEntries] = useState<CashLedgerEntry[]>([])
   const [reconciliations, setReconciliations] = useState<CashReconciliation[]>([])
@@ -23,6 +26,10 @@ export function CashAccountsModule({ role }: Props) {
   const [selectedAccountId, setSelectedAccountId] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [period, setPeriod] = useState(`month:${currentMonth}`)
+  const [kindFilter, setKindFilter] = useState<LedgerKindFilter>('transfers')
+  const [directionFilter, setDirectionFilter] = useState<LedgerDirectionFilter>('all')
+  const [search, setSearch] = useState('')
   const [accountModalOpen, setAccountModalOpen] = useState(false)
   const [transferModalOpen, setTransferModalOpen] = useState(false)
   const [reconciliationAccount, setReconciliationAccount] = useState<CashAccount | null>(null)
@@ -54,7 +61,14 @@ export function CashAccountsModule({ role }: Props) {
 
   const visibleTotal = useMemo(() => accounts.reduce((sum, account) => sum + Number(account.balance), 0), [accounts])
   const selectedAccount = accounts.find((account) => account.id === selectedAccountId) ?? null
-  const selectedEntries = entries.filter((entry) => entry.account_id === selectedAccountId)
+  const accountEntries = useMemo(() => entries.filter((entry) => entry.account_id === selectedAccountId), [entries, selectedAccountId])
+  const periods = useMemo(() => {
+    const months = [...new Set(accountEntries.map((entry) => entry.transaction_date.slice(0, 7)).concat(currentMonth))].sort().reverse()
+    return { months, years: [...new Set(months.map((month) => month.slice(0, 4)))].sort().reverse() }
+  }, [accountEntries, currentMonth])
+  const periodEntries = useMemo(() => filterCashLedgerEntries(accountEntries, { period, kind: 'all', direction: 'all', search: '' }), [accountEntries, period])
+  const selectedEntries = useMemo(() => filterCashLedgerEntries(accountEntries, { period, kind: kindFilter, direction: directionFilter, search }), [accountEntries, period, kindFilter, directionFilter, search])
+  const { openingBalance, inflow: periodInflow, outflow: periodOutflow, closingBalance } = useMemo(() => calculateCashLedgerPeriodSummary(accountEntries, period), [accountEntries, period])
   const selectedReconciliations = reconciliations.filter((item) => item.account_id === selectedAccountId)
 
   async function save(action: () => Promise<void>, success: () => void) {
@@ -101,11 +115,13 @@ export function CashAccountsModule({ role }: Props) {
     </section>
 
     {selectedAccount && <section className="panel cash-ledger-panel">
-      <div className="panel-heading"><div><h3>{selectedAccount.name} ledger</h3><p>{selectedAccount.description || 'All cash movements assigned to this account'}</p></div><button className="button secondary compact-button" onClick={() => setReconciliationAccount(selectedAccount)}><ClipboardCheck size={15} /> Reconcile</button></div>
+      <div className="panel-heading"><div><h3>{selectedAccount.name} ledger</h3><p>{selectedAccount.description || 'All cash movements assigned to this account'}</p></div><div className="cash-ledger-heading-actions"><label className="period-select"><CalendarDays size={15} /><select aria-label="Filter cash movements by period" value={period} onChange={(event) => setPeriod(event.target.value)}><option value="all">All dates</option><optgroup label="Whole year">{periods.years.map((year) => <option key={year} value={`year:${year}`}>{year} — whole year</option>)}</optgroup><optgroup label="By month">{periods.months.map((month) => <option key={month} value={`month:${month}`}>{monthFormatter.format(new Date(`${month}-01T12:00:00`))}</option>)}</optgroup></select></label><button className="button secondary compact-button" onClick={() => setReconciliationAccount(selectedAccount)}><ClipboardCheck size={15} /> Reconcile</button></div></div>
+      <div className="cash-ledger-period-summary"><div><span>Opening balance</span><strong>{currency.format(openingBalance)}</strong></div><div><span>Money in</span><strong className="cash-entry-inflow">+{currency.format(periodInflow)}</strong></div><div><span>Money out</span><strong className="cash-entry-outflow">−{currency.format(periodOutflow)}</strong></div><div><span>Closing balance</span><strong>{currency.format(closingBalance)}</strong></div></div>
+      <div className="toolbar"><label className="search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search cash movements…" /></label><label className="filter cash-ledger-kind-filter"><SlidersHorizontal size={16} /><select aria-label="Filter cash movements by type" value={kindFilter} onChange={(event) => setKindFilter(event.target.value as LedgerKindFilter)}><option value="transfers">Transfers only</option><option value="all">All activity</option><option value="expenses">Expenses only</option><option value="other">Other movements</option></select></label><label className="filter cash-ledger-direction-filter"><ArrowRightLeft size={16} /><select aria-label="Filter cash movements by direction" value={directionFilter} onChange={(event) => setDirectionFilter(event.target.value as LedgerDirectionFilter)}><option value="all">All directions</option><option value="inflow">Money in</option><option value="outflow">Money out</option></select></label><span className="results">{selectedEntries.length} entries</span></div>
       <div className="table-wrap cash-ledger-table"><table><thead><tr><th>Date</th><th>Type</th><th>Description</th><th>Recorded by</th><th className="amount">Movement</th><th className="amount">Direction</th></tr></thead><tbody>
-        {selectedEntries.length === 0 ? <tr><td colSpan={6} className="empty">No cash movements for this account.</td></tr> : selectedEntries.map((entry) => <tr key={entry.entry_key}><td className="date-cell">{formatDate(entry.transaction_date)}</td><td><span className={`category ${entry.kind === 'transfer' ? 'blue' : entry.direction === 'inflow' ? 'green' : 'orange'}`}>{entry.kind.replace(/_/g, ' ')}</span></td><td className="cash-ledger-description">{entry.description}</td><td className="creator-cell">{entry.created_by_email ?? 'System record'}</td><td className={`amount cash-entry-${entry.direction}`}><strong>{entry.direction === 'inflow' ? '+' : '−'}{currency.format(Number(entry.amount))}</strong></td><td className="amount">{entry.direction === 'inflow' ? <ArrowDownLeft size={15} /> : <ArrowUpRight size={15} />}</td></tr>)}
+        {selectedEntries.length === 0 ? <tr><td colSpan={6} className="empty">No cash movements match these filters.</td></tr> : selectedEntries.map((entry) => <tr key={entry.entry_key}><td className="date-cell">{formatDate(entry.transaction_date)}</td><td><span className={`category ${entry.kind === 'transfer' ? 'blue' : entry.direction === 'inflow' ? 'green' : 'orange'}`}>{entry.kind.replace(/_/g, ' ')}</span></td><td className="cash-ledger-description">{entry.description}</td><td className="creator-cell">{entry.created_by_email ?? 'System record'}</td><td className={`amount cash-entry-${entry.direction}`}><strong>{entry.direction === 'inflow' ? '+' : '−'}{currency.format(Number(entry.amount))}</strong></td><td className="amount">{entry.direction === 'inflow' ? <ArrowDownLeft size={15} /> : <ArrowUpRight size={15} />}</td></tr>)}
       </tbody></table></div>
-      <div className="panel-footer">{selectedEntries.length} ledger {selectedEntries.length === 1 ? 'entry' : 'entries'} <span>Current balance: {currency.format(Number(selectedAccount.balance))}</span></div>
+      <div className="panel-footer">Showing {selectedEntries.length} of {periodEntries.length} period entries <span>Current balance: {currency.format(Number(selectedAccount.balance))}</span></div>
     </section>}
 
     {selectedAccount && <section className="panel cash-reconciliation-panel"><div className="panel-heading"><div><h3>Reconciliation history</h3><p>Expected ledger balance compared with physically counted cash</p></div></div><div className="table-wrap"><table><thead><tr><th>Date</th><th>Recorded by</th><th>Notes</th><th className="amount">Expected</th><th className="amount">Counted</th><th className="amount">Difference</th></tr></thead><tbody>{selectedReconciliations.length === 0 ? <tr><td colSpan={6} className="empty">This account has not been reconciled yet.</td></tr> : selectedReconciliations.map((item) => <tr key={item.id}><td className="date-cell">{formatDate(item.reconciliation_date)}</td><td className="creator-cell">{item.created_by_email}</td><td>{item.notes || 'No notes'}</td><td className="amount">{currency.format(Number(item.expected_balance))}</td><td className="amount">{currency.format(Number(item.counted_balance))}</td><td className={`amount ${Number(item.variance) === 0 ? 'cash-balanced' : 'negative-amount'}`}><strong>{Number(item.variance) > 0 ? '+' : ''}{currency.format(Number(item.variance))}</strong></td></tr>)}</tbody></table></div></section>}
