@@ -1,4 +1,4 @@
-import { ArrowDownLeft, ArrowRightLeft, ArrowUpRight, CalendarDays, ClipboardCheck, Plus, RefreshCw, Search, SlidersHorizontal, WalletCards, X } from 'lucide-react'
+import { ArrowDownLeft, ArrowRightLeft, ArrowUpRight, CalendarDays, ClipboardCheck, Plus, RefreshCw, Search, SlidersHorizontal, Trash2, WalletCards, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { formatDate, getBusinessMonth } from '../../lib/businessDate'
 import type { AppRole } from '../access/types'
@@ -6,8 +6,9 @@ import { hasFullAccess } from '../access/types'
 import { AddCashAccountModal } from './components/AddCashAccountModal'
 import { AddCashReconciliationModal } from './components/AddCashReconciliationModal'
 import { AddCashTransferModal } from './components/AddCashTransferModal'
-import { createCashAccount, createCashReconciliation, createCashTransfer, getCashAccounts, getCashAccountUsers, getCashLedger, getCashReconciliations } from './cashAccountService'
+import { createCashAccount, createCashReconciliation, createCashTransfer, getCashAccounts, getCashAccountUsers, getCashLedger, getCashReconciliations, removeCashTransfer } from './cashAccountService'
 import { calculateCashLedgerPeriodSummary, filterCashLedgerEntries, type LedgerDirectionFilter, type LedgerKindFilter } from './cashLedgerCalculations'
+import { canDeleteCashTransfer } from './cashTransferDeletion'
 import type { CashAccount, CashAccountInput, CashAccountUser, CashLedgerEntry, CashReconciliation, CashReconciliationInput, CashTransferInput } from './types'
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'AZN' })
@@ -26,6 +27,7 @@ export function CashAccountsModule({ role }: Props) {
   const [selectedAccountId, setSelectedAccountId] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [deletingTransferId, setDeletingTransferId] = useState('')
   const [period, setPeriod] = useState(`month:${currentMonth}`)
   const [kindFilter, setKindFilter] = useState<LedgerKindFilter>('transfers')
   const [directionFilter, setDirectionFilter] = useState<LedgerDirectionFilter>('all')
@@ -97,6 +99,25 @@ export function CashAccountsModule({ role }: Props) {
     return save(async () => { await createCashReconciliation(input) }, () => setReconciliationAccount(null))
   }
 
+  async function deleteTransfer(entry: CashLedgerEntry) {
+    if (!canDeleteCashTransfer(entry.created_at)) {
+      setError('Cash transfers can only be deleted within 24 hours of creation.')
+      return
+    }
+    if (!window.confirm(`Delete this ${currency.format(Number(entry.amount))} transfer? This removes it from both cash accounts.`)) return
+
+    setDeletingTransferId(entry.source_id)
+    setError('')
+    try {
+      await removeCashTransfer(entry.source_id)
+      await loadWorkspace()
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Could not delete the cash transfer.')
+    } finally {
+      setDeletingTransferId('')
+    }
+  }
+
   return <>
     <header><div><p className="eyebrow">CASH CUSTODY</p><h1>Cash accounts</h1><p>Track cash held by the accountant, procurement, and every project lead.</p></div><div className="header-actions"><button className="button secondary" disabled={loading} onClick={() => void loadWorkspace()}><RefreshCw size={16} /> Refresh</button>{privileged && <button className="button secondary" disabled={accounts.filter((account) => account.is_active).length < 2} onClick={() => setTransferModalOpen(true)}><ArrowRightLeft size={16} /> Transfer</button>}{privileged && <button className="button primary" onClick={() => setAccountModalOpen(true)}><Plus size={16} /> Add account</button>}</div></header>
     {error && <div className="error-banner">{error}<button onClick={() => setError('')}><X size={15} /></button></div>}
@@ -118,8 +139,12 @@ export function CashAccountsModule({ role }: Props) {
       <div className="panel-heading"><div><h3>{selectedAccount.name} ledger</h3><p>{selectedAccount.description || 'All cash movements assigned to this account'}</p></div><div className="cash-ledger-heading-actions"><label className="period-select"><CalendarDays size={15} /><select aria-label="Filter cash movements by period" value={period} onChange={(event) => setPeriod(event.target.value)}><option value="all">All dates</option><optgroup label="Whole year">{periods.years.map((year) => <option key={year} value={`year:${year}`}>{year} — whole year</option>)}</optgroup><optgroup label="By month">{periods.months.map((month) => <option key={month} value={`month:${month}`}>{monthFormatter.format(new Date(`${month}-01T12:00:00`))}</option>)}</optgroup></select></label><button className="button secondary compact-button" onClick={() => setReconciliationAccount(selectedAccount)}><ClipboardCheck size={15} /> Reconcile</button></div></div>
       <div className="cash-ledger-period-summary"><div><span>Opening balance</span><strong>{currency.format(openingBalance)}</strong></div><div><span>Money in</span><strong className="cash-entry-inflow">+{currency.format(periodInflow)}</strong></div><div><span>Money out</span><strong className="cash-entry-outflow">−{currency.format(periodOutflow)}</strong></div><div><span>Closing balance</span><strong>{currency.format(closingBalance)}</strong></div></div>
       <div className="toolbar"><label className="search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search cash movements…" /></label><label className="filter cash-ledger-kind-filter"><SlidersHorizontal size={16} /><select aria-label="Filter cash movements by type" value={kindFilter} onChange={(event) => setKindFilter(event.target.value as LedgerKindFilter)}><option value="transfers">Transfers only</option><option value="all">All activity</option><option value="expenses">Expenses only</option><option value="other">Other movements</option></select></label><label className="filter cash-ledger-direction-filter"><ArrowRightLeft size={16} /><select aria-label="Filter cash movements by direction" value={directionFilter} onChange={(event) => setDirectionFilter(event.target.value as LedgerDirectionFilter)}><option value="all">All directions</option><option value="inflow">Money in</option><option value="outflow">Money out</option></select></label><span className="results">{selectedEntries.length} entries</span></div>
-      <div className="table-wrap cash-ledger-table"><table><thead><tr><th>Date</th><th>Type</th><th>Description</th><th>Recorded by</th><th className="amount">Movement</th><th className="amount">Direction</th></tr></thead><tbody>
-        {selectedEntries.length === 0 ? <tr><td colSpan={6} className="empty">No cash movements match these filters.</td></tr> : selectedEntries.map((entry) => <tr key={entry.entry_key}><td className="date-cell">{formatDate(entry.transaction_date)}</td><td><span className={`category ${entry.kind === 'transfer' ? 'blue' : entry.direction === 'inflow' ? 'green' : 'orange'}`}>{entry.kind.replace(/_/g, ' ')}</span></td><td className="cash-ledger-description">{entry.description}</td><td className="creator-cell">{entry.created_by_email ?? 'System record'}</td><td className={`amount cash-entry-${entry.direction}`}><strong>{entry.direction === 'inflow' ? '+' : '−'}{currency.format(Number(entry.amount))}</strong></td><td className="amount">{entry.direction === 'inflow' ? <ArrowDownLeft size={15} /> : <ArrowUpRight size={15} />}</td></tr>)}
+      <div className="table-wrap cash-ledger-table"><table><thead><tr><th>Date</th><th>Type</th><th>Description</th><th>Recorded by</th><th className="amount">Movement</th><th className="amount">Direction</th><th /></tr></thead><tbody>
+        {selectedEntries.length === 0 ? <tr><td colSpan={7} className="empty">No cash movements match these filters.</td></tr> : selectedEntries.map((entry) => {
+          const isTransfer = entry.kind === 'transfer' && entry.source_type === 'cash_transfers'
+          const canDelete = isTransfer && canDeleteCashTransfer(entry.created_at)
+          return <tr key={entry.entry_key}><td className="date-cell">{formatDate(entry.transaction_date)}</td><td><span className={`category ${entry.kind === 'transfer' ? 'blue' : entry.direction === 'inflow' ? 'green' : 'orange'}`}>{entry.kind.replace(/_/g, ' ')}</span></td><td className="cash-ledger-description">{entry.description}</td><td className="creator-cell">{entry.created_by_email ?? 'System record'}</td><td className={`amount cash-entry-${entry.direction}`}><strong>{entry.direction === 'inflow' ? '+' : '−'}{currency.format(Number(entry.amount))}</strong></td><td className="amount">{entry.direction === 'inflow' ? <ArrowDownLeft size={15} /> : <ArrowUpRight size={15} />}</td><td>{privileged && isTransfer && <button className="icon-button delete" disabled={!canDelete || deletingTransferId === entry.source_id} title={canDelete ? 'Delete transfer' : 'Transfers cannot be deleted after 24 hours'} aria-label="Delete transfer" onClick={() => void deleteTransfer(entry)}><Trash2 size={15} /></button>}</td></tr>
+        })}
       </tbody></table></div>
       <div className="panel-footer">Showing {selectedEntries.length} of {periodEntries.length} period entries <span>Current balance: {currency.format(Number(selectedAccount.balance))}</span></div>
     </section>}

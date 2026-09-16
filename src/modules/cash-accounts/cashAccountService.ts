@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase'
 import { fetchAllPages } from '../../lib/pagination'
 import { getManagedUsers } from '../access/accessService'
+import { sortCashAccountsMainFirst } from './cashAccountOrdering'
 import type {
   CashAccount,
   CashAccountInput,
@@ -12,7 +13,7 @@ import type {
 } from './types'
 
 export async function getCashAccounts() {
-  return fetchAllPages<CashAccount>(async (from, to) => {
+  const accounts = await fetchAllPages<CashAccount>(async (from, to) => {
     const { data, error } = await supabase
       .from('cash_account_balances')
       .select('*')
@@ -22,6 +23,7 @@ export async function getCashAccounts() {
       .range(from, to)
     return { data: data as CashAccount[] | null, error }
   })
+  return sortCashAccountsMainFirst(accounts)
 }
 
 export async function getCashLedger() {
@@ -74,6 +76,12 @@ export async function createCashTransfer(input: CashTransferInput) {
     description: input.description?.trim() || null,
   })
   if (error) throw error
+}
+
+export async function removeCashTransfer(id: string) {
+  const { data, error } = await supabase.from('cash_transfers').delete().eq('id', id).select('id').maybeSingle()
+  if (error) throw error
+  if (!data) throw new Error('This transfer could not be deleted. Transfers become locked 24 hours after creation.')
 }
 
 export async function createCashReconciliation(input: CashReconciliationInput) {

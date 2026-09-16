@@ -2,6 +2,7 @@ import { ArrowRightLeft, X } from 'lucide-react'
 import { useState } from 'react'
 import { DateInput } from '../../../components/DateInput'
 import { getBusinessDate } from '../../../lib/businessDate'
+import { getDefaultTransferAccountIds, sortCashAccountsMainFirst } from '../cashAccountOrdering'
 import type { CashAccount, CashTransferInput } from '../types'
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'AZN' })
@@ -14,11 +15,12 @@ interface Props {
 }
 
 export function AddCashTransferModal({ accounts, saving, onClose, onSubmit }: Props) {
-  const activeAccounts = accounts.filter((account) => account.is_active)
+  const activeAccounts = sortCashAccountsMainFirst(accounts.filter((account) => account.is_active))
+  const defaults = getDefaultTransferAccountIds(accounts)
   const [form, setForm] = useState<CashTransferInput>({
     transfer_date: getBusinessDate(),
-    from_account_id: activeAccounts[0]?.id ?? '',
-    to_account_id: activeAccounts[1]?.id ?? '',
+    from_account_id: defaults.fromAccountId,
+    to_account_id: defaults.toAccountId,
     amount: 0,
     description: '',
   })
