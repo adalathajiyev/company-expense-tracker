@@ -145,7 +145,7 @@ export function BalanceModule() {
       <div>
         <span>Current physical cash</span>
         <strong>{loading ? 'Loading…' : currency.format(physicalCash)}</strong>
-        <small>Cash physically held across your cash accounts. Unsettled receivables and payables are excluded.</small>
+        <small>Cash physically held across your accounts, including cash issued or received when an obligation was created.</small>
       </div>
       <span className="balance-hero-icon"><WalletCards size={28} /></span>
     </section>
@@ -178,7 +178,7 @@ export function BalanceModule() {
 
     <section className="panel balance-adjustments-panel">
       <div className="panel-heading">
-        <div><h3>Receivables and payables</h3><p>Track obligations separately and record settlements when money moves</p></div>
+        <div><h3>Receivables and payables</h3><p>Initial amounts move Main Cash; settlements record money returned or repaid</p></div>
         <button className="button primary compact-button" onClick={() => setModalOpen(true)}><Plus size={15} /> Add obligation</button>
       </div>
       <div className="table-wrap balance-adjustments-table">

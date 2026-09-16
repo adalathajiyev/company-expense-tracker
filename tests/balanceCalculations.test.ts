@@ -26,4 +26,11 @@ describe('balance calculations', () => {
   it('keeps physical cash separate from the net cash position', () => {
     expect(calculateNetPosition(5000, 1000, 300)).toBe(5700)
   })
+
+  it('keeps net position stable when cash creates an obligation', () => {
+    // Lending 1,000 reduces cash from 5,000 to 4,000 and creates a receivable.
+    expect(calculateNetPosition(4000, 1000, 0)).toBe(5000)
+    // Borrowing 500 increases cash to 5,500 and creates a matching payable.
+    expect(calculateNetPosition(5500, 0, 500)).toBe(5000)
+  })
 })

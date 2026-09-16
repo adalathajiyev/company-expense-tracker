@@ -44,7 +44,9 @@ export function AddBalanceAdjustmentModal({ saving, onClose, onSubmit }: Props) 
           <label className="wide">Description<textarea value={form.description ?? ''} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="What is this payment for?" /></label>
           <div className={`wide balance-direction-preview ${form.direction}`}>
             {form.direction === 'receivable' ? <ArrowDownLeft size={17} /> : <ArrowUpRight size={17} />}
-            <span>This records an obligation only. Physical cash changes when a cash settlement is recorded.</span>
+            <span>{form.direction === 'receivable'
+              ? 'This records cash leaving Main Cash and an amount the company must collect.'
+              : 'This records cash entering Main Cash and an amount the company must repay.'}</span>
           </div>
         </div>
         <div className="modal-actions"><button type="button" className="button secondary" disabled={saving} onClick={onClose}>Cancel</button><button className="button primary" disabled={saving}>{saving ? 'Saving…' : 'Add obligation'}</button></div>
