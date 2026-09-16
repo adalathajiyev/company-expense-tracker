@@ -81,7 +81,7 @@ export async function createCashTransfer(input: CashTransferInput) {
 export async function removeCashTransfer(id: string) {
   const { data, error } = await supabase.from('cash_transfers').delete().eq('id', id).select('id').maybeSingle()
   if (error) throw error
-  if (!data) throw new Error('This transfer could not be deleted. Transfers become locked 24 hours after creation.')
+  if (!data) throw new Error('This transfer could not be deleted. Only an Administrator can delete transfers.')
 }
 
 export async function createCashReconciliation(input: CashReconciliationInput) {

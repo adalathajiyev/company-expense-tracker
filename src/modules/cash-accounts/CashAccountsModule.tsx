@@ -19,6 +19,7 @@ interface Props { role: AppRole }
 
 export function CashAccountsModule({ role }: Props) {
   const privileged = hasFullAccess(role)
+  const canDeleteTransfers = canDeleteCashTransfer(role)
   const currentMonth = getBusinessMonth()
   const [accounts, setAccounts] = useState<CashAccount[]>([])
   const [entries, setEntries] = useState<CashLedgerEntry[]>([])
@@ -100,8 +101,8 @@ export function CashAccountsModule({ role }: Props) {
   }
 
   async function deleteTransfer(entry: CashLedgerEntry) {
-    if (!canDeleteCashTransfer(entry.created_at)) {
-      setError('Cash transfers can only be deleted within 24 hours of creation.')
+    if (!canDeleteTransfers) {
+      setError('Only an Administrator can delete transfers.')
       return
     }
     if (!window.confirm(`Delete this ${currency.format(Number(entry.amount))} transfer? This removes it from both cash accounts.`)) return
@@ -142,8 +143,7 @@ export function CashAccountsModule({ role }: Props) {
       <div className="table-wrap cash-ledger-table"><table><thead><tr><th>Date</th><th>Type</th><th>Description</th><th>Recorded by</th><th className="amount">Movement</th><th className="amount">Direction</th><th /></tr></thead><tbody>
         {selectedEntries.length === 0 ? <tr><td colSpan={7} className="empty">No cash movements match these filters.</td></tr> : selectedEntries.map((entry) => {
           const isTransfer = entry.kind === 'transfer' && entry.source_type === 'cash_transfers'
-          const canDelete = isTransfer && canDeleteCashTransfer(entry.created_at)
-          return <tr key={entry.entry_key}><td className="date-cell">{formatDate(entry.transaction_date)}</td><td><span className={`category ${entry.kind === 'transfer' ? 'blue' : entry.direction === 'inflow' ? 'green' : 'orange'}`}>{entry.kind.replace(/_/g, ' ')}</span></td><td className="cash-ledger-description">{entry.description}</td><td className="creator-cell">{entry.created_by_email ?? 'System record'}</td><td className={`amount cash-entry-${entry.direction}`}><strong>{entry.direction === 'inflow' ? '+' : '−'}{currency.format(Number(entry.amount))}</strong></td><td className="amount">{entry.direction === 'inflow' ? <ArrowDownLeft size={15} /> : <ArrowUpRight size={15} />}</td><td>{privileged && isTransfer && <button className="icon-button delete" disabled={!canDelete || deletingTransferId === entry.source_id} title={canDelete ? 'Delete transfer' : 'Transfers cannot be deleted after 24 hours'} aria-label="Delete transfer" onClick={() => void deleteTransfer(entry)}><Trash2 size={15} /></button>}</td></tr>
+          return <tr key={entry.entry_key}><td className="date-cell">{formatDate(entry.transaction_date)}</td><td><span className={`category ${entry.kind === 'transfer' ? 'blue' : entry.direction === 'inflow' ? 'green' : 'orange'}`}>{entry.kind.replace(/_/g, ' ')}</span></td><td className="cash-ledger-description">{entry.description}</td><td className="creator-cell">{entry.created_by_email ?? 'System record'}</td><td className={`amount cash-entry-${entry.direction}`}><strong>{entry.direction === 'inflow' ? '+' : '−'}{currency.format(Number(entry.amount))}</strong></td><td className="amount">{entry.direction === 'inflow' ? <ArrowDownLeft size={15} /> : <ArrowUpRight size={15} />}</td><td>{canDeleteTransfers && isTransfer && <button className="icon-button delete" disabled={deletingTransferId === entry.source_id} title="Delete transfer" aria-label="Delete transfer" onClick={() => void deleteTransfer(entry)}><Trash2 size={15} /></button>}</td></tr>
         })}
       </tbody></table></div>
       <div className="panel-footer">Showing {selectedEntries.length} of {periodEntries.length} period entries <span>Current balance: {currency.format(Number(selectedAccount.balance))}</span></div>
